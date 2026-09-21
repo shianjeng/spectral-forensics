@@ -9,7 +9,7 @@ sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
 file was ever an mp3, and edit sound in the frequency domain — including
 turning a photograph into something you can hear.
 
-*Installs as the `sonogram` command.*
+*Installs as `spf` (or the full `spectral-forensics`).*
 
 ![reassigned vs standard](examples/reassign_compare.png)
 
@@ -82,7 +82,7 @@ distinction that lets centroid localisation beat the diffraction limit in
 microscopy.
 
 ```bash
-sonogram reassign track.flac --hop 256 --side-by-side
+spf reassign track.flac --hop 256 --side-by-side
 ```
 
 ```
@@ -109,7 +109,7 @@ re-wrapped mp3?** Lossy encoders discard everything above a cutoff. Convert
 the result back to FLAC and the container changes, but the cliff stays.
 
 ```bash
-sonogram audit ~/Music --recursive --verbose
+spf audit ~/Music --recursive --verbose
 ```
 
 ```
@@ -183,10 +183,10 @@ numerical precision:
 ```
 
 ```bash
-sonogram edit track.wav --reject 2000:4000          # drop a band
-sonogram edit track.wav --keep 80:250               # isolate the bass
-sonogram edit track.wav --denoise
-sonogram edit track.wav --mask painted.png          # paint in any image editor
+spf edit track.wav --reject 2000:4000          # drop a band
+spf edit track.wav --keep 80:250               # isolate the bass
+spf edit track.wav --denoise
+spf edit track.wav --mask painted.png          # paint in any image editor
 ```
 
 Band rejection measured on a three-tone mixture: target band down more than
@@ -215,7 +215,7 @@ to keep. Griffin-Lim alternates projections between "is a real signal" and
 converges to a local solution, so a metallic quality is inherent, not a bug.
 
 ```bash
-sonogram sonify photo.jpg --preview roundtrip.png
+spf sonify photo.jpg --preview roundtrip.png
 ```
 
 ![photo round trip](examples/photo_roundtrip.png)
@@ -230,9 +230,9 @@ iterations.
 ## 4. Posters, video, window comparison
 
 ```bash
-sonogram poster  track.mp3 --transform cqt --palette bloom
-sonogram video   track.mp3 --size 1920x1080 --fps 30 --bars 128
-sonogram compare track.mp3 --n-ffts 512,2048,8192
+spf poster  track.mp3 --transform cqt --palette bloom
+spf video   track.mp3 --size 1920x1080 --fps 30 --bars 128
+spf compare track.mp3 --n-ffts 512,2048,8192
 ```
 
 ![window comparison](examples/compare_nfft.png)
@@ -254,7 +254,7 @@ is not in the data.
 ## Layout
 
 ```
-sonogram/
+spectral_forensics/
 ├── io.py          decode → mono → resample (ffmpeg fallback for m4a)
 ├── transform.py   STFT / mel / CQT      (numpy in, numpy out)
 ├── reassign.py    phase-derivative reassignment + rasterisation

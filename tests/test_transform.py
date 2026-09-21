@@ -5,8 +5,8 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sonogram.io import Audio
-from sonogram.transform import SpectroConfig, compute, frame_spectrum
+from spectral_forensics.io import Audio
+from spectral_forensics.transform import SpectroConfig, compute, frame_spectrum
 
 
 def sine(freq: float, sr: int = 22050, dur: float = 2.0) -> Audio:

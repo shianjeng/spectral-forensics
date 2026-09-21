@@ -8,10 +8,10 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from sonogram.audit import find_cutoff, guess_source, long_term_spectrum
-from sonogram.io import Audio
-from sonogram.reassign import rasterize, reassign, sharpness
-from sonogram.transform import SpectroConfig
+from spectral_forensics.audit import find_cutoff, guess_source, long_term_spectrum
+from spectral_forensics.io import Audio
+from spectral_forensics.reassign import rasterize, reassign, sharpness
+from spectral_forensics.transform import SpectroConfig
 
 SR = 44100
 

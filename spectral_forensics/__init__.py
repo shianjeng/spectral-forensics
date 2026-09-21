@@ -1,4 +1,4 @@
-"""sonogram — 频谱检视与有损转码取证工具包。"""
+"""spectral-forensics — 频谱检视与有损转码取证工具包。"""
 
 from .audit import AuditResult, audit_file, audit_path
 from .invert import (ComplexSpec, analyze, apply_mask, band_mask,

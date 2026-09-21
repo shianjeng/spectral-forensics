@@ -6,10 +6,10 @@ import librosa
 import numpy as np
 import pytest
 
-from sonogram.io import Audio
-from sonogram.invert import (analyze, apply_mask, band_mask, image_to_magnitude,
+from spectral_forensics.io import Audio
+from spectral_forensics.invert import (analyze, apply_mask, band_mask, image_to_magnitude,
                              spectral_convergence, spectral_gate, synthesize)
-from sonogram.transform import SpectroConfig
+from spectral_forensics.transform import SpectroConfig
 
 SR = 22050
 CFG = SpectroConfig(kind="stft", n_fft=2048, hop_length=512)
@@ -144,7 +144,7 @@ def test_griffinlim_seed_kwarg_matches_installed_librosa():
     """
     import inspect as _inspect
 
-    from sonogram.invert import _griffinlim_seed_kwarg
+    from spectral_forensics.invert import _griffinlim_seed_kwarg
 
     name = _griffinlim_seed_kwarg()
     if name:

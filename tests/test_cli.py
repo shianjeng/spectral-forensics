@@ -13,7 +13,7 @@ import pytest
 import soundfile as sf
 from PIL import Image
 
-from sonogram.cli import main
+from spectral_forensics.cli import main
 
 SR = 22050
 

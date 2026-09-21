@@ -12,7 +12,7 @@ from . import render, transform, video
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="sonogram",
+        prog="spf",
         description="把一首歌渲染成声纹海报或频谱视频。",
     )
     sub = p.add_subparsers(dest="command", required=True)
@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "poster":
         spec = transform.compute(audio, _config(args))
-        out = args.output or f"{stem}_sonogram.png"
+        out = args.output or f"{stem}_spectrogram.png"
         tempo = sio.estimate_tempo(audio)
         subtitle = (f"{spec.config.describe(audio.sr)} · "
                     f"{audio.duration:.0f}s · {tempo:.0f} BPM")
@@ -143,7 +143,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         spec = transform.compute(audio, _config(args))
         w, _, h = args.size.partition("x")
-        out = args.output or f"{stem}_sonogram.mp4"
+        out = args.output or f"{stem}_spectrum.mp4"
         path = video.render_video(
             audio, spec, out, fps=args.fps,
             width=int(w), height=int(h), n_bars=args.bars,
