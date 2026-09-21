@@ -56,7 +56,7 @@ class Probe:
 @dataclass
 class AuditResult:
     path: str
-    verdict: str                    # clean / suspect / lossy / unknown
+    verdict: str                    # clean / likely / suspect / lossy / unknown
     confidence: float               # 0–1
     cutoff_khz: float | None
     nyquist_khz: float
@@ -259,9 +259,9 @@ def audit_file(path: str | Path, analysis_sr: int = 44100,
                 verdict = "suspect"
                 notes.append("高码率标称配低频谱上限，疑似低码率文件二次编码")
     elif score >= 0.70:
-        verdict = "suspect"
+        verdict = "suspect"      # 低通 + 砖墙，通常还落在编码器常用档位上
     elif score >= 0.45:
-        verdict = "suspect"
+        verdict = "likely"       # 只有低通，缺少砖墙或立体声佐证
     else:
         verdict = "clean"
 

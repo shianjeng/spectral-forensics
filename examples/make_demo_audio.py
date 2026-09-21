@@ -1,5 +1,8 @@
 """生成一段无版权的合成音频作为示例（和弦进行 + 鼓点 + 旋律）。"""
-import numpy as np, soundfile as sf
+from pathlib import Path
+
+import numpy as np
+import soundfile as sf
 
 sr = 44100; bpm = 100; beat = 60 / bpm; bars = 8
 dur = bars * 4 * beat
@@ -40,5 +43,5 @@ for b in range(bars):
         hat(t0 + k*beat); hat(t0 + (k+0.5)*beat)
 
 y /= np.max(np.abs(y)) * 1.05
-sf.write("examples/demo_track.wav", y.astype(np.float32), sr)
+sf.write(str(Path(__file__).parent / "demo_track.wav"), y.astype(np.float32), sr)
 print(f"{dur:.1f}s written")

@@ -87,7 +87,8 @@ def build_parser() -> argparse.ArgumentParser:
     sa.add_argument("input", help="音频文件或目录")
     sa.add_argument("-r", "--recursive", action="store_true", help="递归扫描子目录")
     sa.add_argument("--json", action="store_true", help="输出 JSON 而非表格")
-    sa.add_argument("--only-suspect", action="store_true", help="只列出可疑文件")
+    sa.add_argument("--only-suspect", action="store_true",
+                    help="只列出可疑和存疑的文件")
     sa.add_argument("--seconds", type=float, default=120.0, help="每个文件分析时长")
     sa.add_argument("--no-stereo-check", action="store_true",
                     help="跳过强度立体声检测（更快）")
@@ -299,6 +300,9 @@ def _run_sonify(args) -> int:
                           palette="mono")
         print(f"已生成谱图: {p}")
     return 0
+
+
+def _run_audit(args) -> int:
     """audit 子命令：扫描文件或整个音乐库。"""
     import json as _json
 
@@ -310,7 +314,7 @@ def _run_sonify(args) -> int:
         check_stereo=not args.no_stereo_check,
     )
     if args.only_suspect:
-        results = [r for r in results if r.verdict in ("suspect", "unknown")]
+        results = [r for r in results if r.verdict in ("suspect", "likely", "unknown")]
 
     if args.json:
         print(_json.dumps([r.as_dict() for r in results],
@@ -321,7 +325,9 @@ def _run_sonify(args) -> int:
         print("没有找到音频文件。")
         return 0
 
-    mark = {"clean": "✓", "suspect": "⚠", "lossy": "·", "unknown": "?"}
+    mark = {"clean": "✓", "likely": "?", "suspect": "⚠",
+            "lossy": "·", "unknown": "!"}
+    flagged = ("suspect", "likely")
     width = min(46, max(len(Path(r.path).name) for r in results))
 
     for r in results:
@@ -329,15 +335,16 @@ def _run_sonify(args) -> int:
         if len(name) > width:
             name = name[:width - 1] + "…"
         cut = f"{r.cutoff_khz:.1f}k" if r.cutoff_khz else "  —  "
-        conf = f"{r.confidence:.0%}" if r.verdict == "suspect" else "    "
-        tail = f"→ {r.guess}" if r.verdict == "suspect" else ""
+        conf = f"{r.confidence:.0%}" if r.verdict in flagged else "    "
+        tail = f"→ {r.guess}" if r.verdict in flagged else ""
         print(f"{mark[r.verdict]} {name:<{width}}  cut={cut:>6}  {conf:>4}  {tail}")
         if args.verbose:
             for n in r.notes:
                 print(f"    · {n}")
 
     n_sus = sum(1 for r in results if r.verdict == "suspect")
-    print(f"\n共 {len(results)} 个文件，{n_sus} 个可疑。")
+    n_lik = sum(1 for r in results if r.verdict == "likely")
+    print(f"\n共 {len(results)} 个文件，{n_sus} 个可疑，{n_lik} 个存疑。")
     return 0
 
 

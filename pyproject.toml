@@ -1,7 +1,7 @@
 [project]
 name = "sonogram"
 version = "0.3.0"
-description = "Render a song into a spectral poster or spectrum video."
+description = "Spectral inspection toolkit: reassigned spectrograms, lossy-transcode forensics, and invertible frequency-domain editing."
 requires-python = ">=3.10"
 dependencies = [
     "pillow>=10.0",
@@ -10,6 +10,10 @@ dependencies = [
     "matplotlib>=3.7",
     "soundfile>=0.12",
 ]
+
+[project.urls]
+Homepage = "https://github.com/shianjeng/spectral-forensics"
+Repository = "https://github.com/shianjeng/spectral-forensics"
 
 [project.scripts]
 sonogram = "sonogram.cli:main"
