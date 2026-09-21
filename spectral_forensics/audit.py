@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import json
 import subprocess
-from dataclasses import dataclass, asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 import librosa
@@ -79,8 +79,10 @@ def probe(path: Path) -> Probe:
         out = subprocess.run(
             ["ffprobe", "-v", "quiet", "-print_format", "json",
              "-show_streams", "-show_format", "-select_streams", "a:0", str(path)],
-            capture_output=True, timeout=30,
+            capture_output=True, timeout=30, check=False,
         )
+        if out.returncode != 0:
+            raise RuntimeError("ffprobe failed")
         data = json.loads(out.stdout or b"{}")
         st = (data.get("streams") or [{}])[0]
         fmt = data.get("format") or {}
@@ -92,12 +94,19 @@ def probe(path: Path) -> Probe:
             bit_rate=int(br) if br else None,
             duration=float(fmt.get("duration", 0) or 0),
         )
-    except Exception:
+    except (
+        json.JSONDecodeError,
+        OSError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+        subprocess.SubprocessError,
+    ):
         try:
             info = sf.info(str(path))
             return Probe(codec=info.subtype or "?", sample_rate=info.samplerate,
                          channels=info.channels, duration=info.duration)
-        except Exception:
+        except (OSError, RuntimeError, TypeError, ValueError):
             return Probe()
 
 
@@ -163,7 +172,7 @@ def intensity_stereo_cutoff(path: Path, sr: int = 44100,
     from .io import load_raw
     try:
         y, sr_actual = load_raw(path, sr=sr, mono=False)
-    except Exception:
+    except (OSError, RuntimeError, TypeError, ValueError):
         return None
     if y.ndim != 2 or y.shape[0] < 2:
         return None
@@ -298,7 +307,8 @@ def audit_path(root: str | Path, recursive: bool = True,
     for p in files:
         try:
             results.append(audit_file(p, **kwargs))
-        except Exception as exc:                  # 坏文件不该中断整库扫描
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:
+            # 坏文件不该中断整库扫描
             results.append(AuditResult(
                 path=str(p), verdict="unknown", confidence=0.0,
                 cutoff_khz=None, nyquist_khz=0.0, steepness_db=None,

@@ -39,7 +39,8 @@ def _freq_ticks(spec: Spectrogram) -> tuple[list[float], list[str]]:
     candidates = [50, 100, 250, 500, 1000, 2000, 4000, 8000, 16000]
     lo, hi = spec.freqs[0], spec.freqs[-1]
     min_gap = len(spec.freqs) * 0.045   # 行号间距小于这个就丢弃，避免标签叠字
-    pos, lab = [], []
+    pos: list[float] = []
+    lab: list[str] = []
     for f in candidates:
         if not (lo < f < hi):
             continue

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -94,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
                     help="跳过强度立体声检测（更快）")
     sa.add_argument("--verbose", action="store_true", help="逐条打印判据")
 
+    sk = sub.add_parser("check", help="检查运行环境与可选依赖")
+    sk.add_argument("--json", action="store_true", help="输出 JSON")
+    sk.add_argument("--strict-optional", action="store_true",
+                    help="可选依赖缺失时返回非零退出码")
+
     return p
 
 
@@ -108,6 +114,8 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
 
     # audit 接受目录、sonify 接受图片，都不走单文件解码这条路
+    if args.command == "check":
+        return _run_check(args)
     if args.command == "audit":
         return _run_audit(args)
     if args.command == "sonify":
@@ -139,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
 
     elif args.command == "video":
         if not video.ffmpeg_available():
-            print("错误: 未找到 ffmpeg", file=sys.stderr)
+            print(_ffmpeg_missing_message(), file=sys.stderr)
             return 1
         spec = transform.compute(audio, _config(args))
         w, _, h = args.size.partition("x")
@@ -168,7 +176,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"已生成对比图: {path}")
 
     elif args.command == "reassign":
-        from .reassign import rasterize, reassign as do_reassign, sharpness
+        from .reassign import rasterize, sharpness
+        from .reassign import reassign as do_reassign
 
         cfg = _config(args)
         if cfg.kind != "stft":
@@ -224,8 +233,14 @@ def _run_edit(args, audio, stem: str) -> int:
     """edit 子命令：频域编辑 → 保相位重建。"""
     import numpy as np
 
-    from .invert import (analyze, apply_mask, band_mask, mask_from_image,
-                         spectral_gate, write_wav)
+    from .invert import (
+        analyze,
+        apply_mask,
+        band_mask,
+        mask_from_image,
+        spectral_gate,
+        write_wav,
+    )
 
     cfg = transform.SpectroConfig(
         kind="stft", n_fft=args.n_fft, hop_length=args.hop,
@@ -275,8 +290,7 @@ def _run_edit(args, audio, stem: str) -> int:
 
 def _run_sonify(args) -> int:
     """sonify 子命令：图片 → 幅度谱 → Griffin-Lim → 音频。"""
-    from .invert import (image_to_magnitude, spectral_convergence, synthesize,
-                         write_wav)
+    from .invert import image_to_magnitude, spectral_convergence, synthesize, write_wav
 
     cfg = transform.SpectroConfig(kind="stft", n_fft=args.n_fft,
                                   hop_length=args.hop)
@@ -346,6 +360,45 @@ def _run_audit(args) -> int:
     n_lik = sum(1 for r in results if r.verdict == "likely")
     print(f"\n共 {len(results)} 个文件，{n_sus} 个可疑，{n_lik} 个存疑。")
     return 0
+
+
+def _ffmpeg_missing_message() -> str:
+    return (
+        "错误: 未找到 ffmpeg。\n"
+        "ffmpeg 是可选系统依赖，但以下场景需要它：\n"
+        "  1) `spf video` 频谱视频输出\n"
+        "  2) 部分 mp3/m4a/alac 解码回退路径\n"
+        "安装方式：\n"
+        "  - Debian/Ubuntu: sudo apt install ffmpeg\n"
+        "  - macOS (Homebrew): brew install ffmpeg\n"
+        "可先运行 `spf check` 查看环境状态。"
+    )
+
+
+def _run_check(args) -> int:
+    ffmpeg_ok = video.ffmpeg_available()
+    report = {
+        "python": ".".join(str(x) for x in sys.version_info[:3]),
+        "ffmpeg": ffmpeg_ok,
+        "core_features": "ready",
+        "optional_features": (
+            "video/mp3/m4a decode fallback ready"
+            if ffmpeg_ok
+            else "video/mp3/m4a decode fallback unavailable (missing ffmpeg)"
+        ),
+    }
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        print(f"Python: {report['python']}")
+        print("核心功能: 可用")
+        print(f"ffmpeg: {'已安装' if ffmpeg_ok else '未安装'}")
+        if ffmpeg_ok:
+            print("可选功能: video 与 mp3/m4a 解码回退可用")
+        else:
+            print("可选功能: video 与 mp3/m4a 解码回退不可用（缺少 ffmpeg）")
+            print(_ffmpeg_missing_message())
+    return 1 if args.strict_optional and not ffmpeg_ok else 0
 
 
 if __name__ == "__main__":

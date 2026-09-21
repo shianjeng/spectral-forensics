@@ -8,6 +8,7 @@ from pathlib import Path
 
 import librosa
 import numpy as np
+from numpy.typing import NDArray
 
 
 @dataclass(frozen=True)
@@ -29,8 +30,9 @@ class Audio:
         return self.path.stem
 
 
-def _decode_via_ffmpeg(path: Path, sr: int, mono: bool,
-                       offset: float, duration: float | None) -> tuple[np.ndarray, int]:
+def _decode_via_ffmpeg(
+    path: Path, sr: int, mono: bool, offset: float, duration: float | None
+) -> tuple[NDArray[np.float32], int]:
     """soundfile/audioread 打不开时（常见于 m4a/alac），直接走 ffmpeg 管道。"""
     cmd = ["ffmpeg", "-v", "quiet", "-i", str(path)]
     if offset:
@@ -40,28 +42,33 @@ def _decode_via_ffmpeg(path: Path, sr: int, mono: bool,
     channels = 1 if mono else 2
     cmd += ["-f", "f32le", "-ac", str(channels), "-ar", str(sr), "pipe:1"]
 
-    out = subprocess.run(cmd, capture_output=True)
+    out = subprocess.run(cmd, capture_output=True, check=False)
     if out.returncode != 0 or not out.stdout:
         raise RuntimeError(f"ffmpeg 解码失败: {path}")
 
-    y = np.frombuffer(out.stdout, dtype=np.float32)
+    y: NDArray[np.float32] = np.frombuffer(out.stdout, dtype=np.float32)
     if not mono:
-        y = y.reshape(-1, 2).T
+        y = y.reshape(-1, 2).T.astype(np.float32)
     return y.copy(), sr
 
 
-def load_raw(path: str | Path, sr: int = 22050, mono: bool = True,
-             offset: float = 0.0, duration: float | None = None
-             ) -> tuple[np.ndarray, int]:
+def load_raw(
+    path: str | Path,
+    sr: int = 22050,
+    mono: bool = True,
+    offset: float = 0.0,
+    duration: float | None = None,
+) -> tuple[NDArray[np.float32], int]:
     """稳健解码：先试 librosa，失败再退到 ffmpeg。返回 (波形, 采样率)。"""
     path = Path(path)
     try:
         y, sr_actual = librosa.load(path, sr=sr, mono=mono,
                                     offset=offset, duration=duration)
         if y.size:
-            return y, int(sr_actual)
-    except Exception:
-        pass
+            return y.astype(np.float32), int(sr_actual)
+    except (RuntimeError, ValueError, OSError):
+        # m4a/alac 等格式在部分环境下会走到这里，随后尝试 ffmpeg 回退。
+        ...
     return _decode_via_ffmpeg(path, sr, mono, offset, duration)
 
 
