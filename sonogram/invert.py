@@ -18,6 +18,7 @@
 
 from __future__ import annotations
 
+import inspect
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -155,18 +156,38 @@ def mask_from_image(path: str | Path, shape: tuple[int, int],
 
 # ------------------------------------------------- Griffin-Lim 无相位重建
 
+def _griffinlim_seed_kwarg() -> str:
+    """librosa 0.x 用 random_state 给 Griffin-Lim 播种，1.0 改叫 rng。
+
+    pyproject 声明的下限是 librosa>=0.10，所以两种都得支持——
+    写死其中一个会让另一半用户直接崩在 TypeError 上。
+    """
+    params = inspect.signature(librosa.griffinlim).parameters
+    if "rng" in params:
+        return "rng"
+    if "random_state" in params:
+        return "random_state"
+    return ""          # 更老的版本不支持播种，只好让它随机
+
+
 def synthesize(magnitude: np.ndarray, sr: int,
                config: SpectroConfig | None = None,
                n_iter: int = 64, momentum: float = 0.99,
                seed: int = 0) -> np.ndarray:
     """从纯幅度谱重建波形（无原始相位可用时）。"""
     cfg = config or SpectroConfig(kind="stft")
-    return librosa.griffinlim(
-        np.asarray(magnitude, dtype=np.float64),
+
+    kwargs = dict(
         n_iter=n_iter, hop_length=cfg.hop_length, win_length=cfg.n_fft,
         n_fft=cfg.n_fft, window=cfg.window,
-        momentum=momentum, init="random", rng=seed,
+        momentum=momentum, init="random",
     )
+    seed_kwarg = _griffinlim_seed_kwarg()
+    if seed_kwarg:
+        kwargs[seed_kwarg] = seed
+
+    return librosa.griffinlim(
+        np.asarray(magnitude, dtype=np.float64), **kwargs)
 
 
 def spectral_convergence(target_mag: np.ndarray, y: np.ndarray,

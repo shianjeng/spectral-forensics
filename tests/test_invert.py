@@ -133,3 +133,19 @@ def test_band_mask_values_stay_in_range(keep):
     spec = analyze(mixture(dur=1.0), CFG)
     m = band_mask(spec, 1000, 2000, keep=keep)
     assert m.min() >= 0.0 and m.max() <= 1.0
+
+
+def test_griffinlim_seed_kwarg_matches_installed_librosa():
+    """播种参数名必须真的存在于当前 librosa 的签名里。
+
+    这条测试是 CI 抓出 bug 后补的：代码原本写死了 librosa 1.0 的 `rng`，
+    而 pyproject 声明的下限是 0.10，那里这个参数叫 `random_state`。
+    装到旧版的用户会直接撞 TypeError。
+    """
+    import inspect as _inspect
+
+    from sonogram.invert import _griffinlim_seed_kwarg
+
+    name = _griffinlim_seed_kwarg()
+    if name:
+        assert name in _inspect.signature(librosa.griffinlim).parameters
