@@ -2,7 +2,7 @@
 name = "sonogram"
 version = "0.3.0"
 description = "Spectral inspection toolkit: reassigned spectrograms, lossy-transcode forensics, and invertible frequency-domain editing."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "pillow>=10.0",
     "librosa>=0.10",

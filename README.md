@@ -4,7 +4,7 @@
 
 [![tests](https://github.com/shianjeng/spectral-forensics/actions/workflows/test.yml/badge.svg)](https://github.com/shianjeng/spectral-forensics/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
-[![python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
 Not another audio visualiser. A spectral **inspection and editing** toolkit:
 sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
