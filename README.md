@@ -1,4 +1,4 @@
-# sonogram
+# spectral-forensics
 
 Not another audio visualiser. A spectral **inspection and editing** toolkit:
 sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
