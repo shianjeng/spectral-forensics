@@ -1,7 +1,5 @@
 # spectral-forensics
 
-*Installs as the `sonogram` command.*
-
 [![tests](https://github.com/shianjeng/spectral-forensics/actions/workflows/test.yml/badge.svg)](https://github.com/shianjeng/spectral-forensics/actions/workflows/test.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
@@ -10,6 +8,8 @@ Not another audio visualiser. A spectral **inspection and editing** toolkit:
 sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
 file was ever an mp3, and edit sound in the frequency domain — including
 turning a photograph into something you can hear.
+
+*Installs as the `sonogram` command.*
 
 ![reassigned vs standard](examples/reassign_compare.png)
 
@@ -25,20 +25,34 @@ glide — invisible above — becomes a readable curve.*
 |---|---|
 | `reassign` | Reassigned spectrogram — resolution beyond Δt·Δf ≥ 1 |
 | `audit` | Detect lossy transcodes in a music library |
-| `poster` | Static sonogram (STFT / mel / CQT) |
-| `video` | Spectrum video with the original audio muxed in |
 | `edit` | Edit in the frequency domain, reconstruct with the original phase |
 | `sonify` | Encode an image into a spectrum and resynthesise it as audio |
+| `poster` | Static sonogram (STFT / mel / CQT) |
+| `video` | Spectrum video with the original audio muxed in |
 | `compare` | Side-by-side window-length comparison |
 
 ## Install
 
 ```bash
 git clone https://github.com/shianjeng/spectral-forensics.git
-cd spectral-forensics && pip install -e .
+cd spectral-forensics
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
 ```
 
-`ffmpeg` is required for video output and for decoding mp3/m4a.
+Python 3.11 or newer. `ffmpeg` is required for video output and for decoding
+mp3/m4a:
+
+```bash
+sudo apt install ffmpeg     # Debian / Ubuntu
+brew install ffmpeg         # macOS
+```
+
+The demo track used throughout this README is synthesised, not sampled:
+
+```bash
+python examples/make_demo_audio.py
+```
 
 ---
 
@@ -72,13 +86,13 @@ sonogram reassign track.flac --hop 256 --side-by-side
 ```
 
 ```
-锐度 (谱集中度): 普通 5.116 → 重分配 5.389
+sharpness (spectral concentration): standard 5.116 → reassigned 5.389
 ```
 
-A test in `tests/test_audit_reassign.py` states the claim numerically: for a
+A test states the claim numerically rather than leaving it to the eye: for a
 1 kHz tone with `n_fft=2048` at 22.05 kHz (Δf = 10.8 Hz), the
-magnitude-weighted spread of reassigned frequency estimates stays **under
-one FFT bin**.
+magnitude-weighted spread of reassigned frequency estimates stays **under one
+FFT bin**.
 
 Where it fails: reassignment relies on the phase derivative being
 meaningful, so overlapping partials and low-SNR regions scatter. Anything
@@ -100,18 +114,14 @@ sonogram audit ~/Music --recursive --verbose
 
 ```
 ✓ 01 - genuine.flac         cut= 22.1k
-⚠ 02 - suspicious.flac      cut= 16.0k   90%  → mp3 ~128 kbps 或 AAC ~128 kbps
-    · 截止处 1 kHz 内再跌 74 dB，呈砖墙特征
+⚠ 02 - suspicious.flac      cut= 16.0k   90%  → mp3 ~128 kbps
 ? 03 - borderline.flac      cut= 18.8k   55%  → mp3 ~192 kbps
 · 04 - honest.mp3           cut= 16.0k
-    · 声明 320 kbps，频谱只支持 mp3 ~128 kbps
-
-共 4 个文件，1 个可疑，1 个存疑。
 ```
 
 Three independent pieces of evidence, because any one alone produces false
-positives (old recordings and solo acoustic material genuinely lack high
-frequencies):
+positives — old recordings and solo acoustic material genuinely lack high
+frequencies:
 
 1. **Cutoff frequency** — the highest frequency still carrying real energy,
    from a 95th-percentile long-term spectrum. A percentile rather than a
@@ -124,9 +134,10 @@ frequencies):
    high frequencies, so the side signal `(L−R)/2` vanishes above some
    frequency. Independent of the lowpass, and hard to fake.
 
-Verdicts come in three tiers: `⚠ suspect` (lowpass **and** a brick wall,
+Verdicts come in three tiers: `⚠ suspect` (a lowpass **and** a brick wall,
 usually landing on a known encoder cutoff), `? likely` (a lowpass with no
-corroborating evidence), and `✓ clean`.
+corroborating evidence), and `✓ clean`. The middle tier exists so that
+genuinely dull recordings are flagged for a listen rather than accused.
 
 It also catches the reverse: an mp3 declaring 320 kbps whose spectrum only
 supports 128 kbps was re-encoded from a low-bitrate source.
@@ -151,9 +162,9 @@ Encoders that apply **no** hard lowpass — ffmpeg's native AAC at higher
 bitrates, Opus — slip past the cutoff test, and in a bench run the tool
 called such a file clean. The lowpass-independent test currently shipped
 (intensity stereo) does not help for mono material. Spectral-hole and
-MDCT-periodicity detectors were prototyped and **did not separate the
-classes on the test material**, so they are not shipped. Read a `✓` as "no
-lowpass evidence", not as proof of provenance.
+MDCT-periodicity detectors were prototyped and **did not separate the classes
+on the test material**, so they are not shipped. Read a `✓` as "no lowpass
+evidence", not as proof of provenance.
 
 ---
 
@@ -182,9 +193,9 @@ Band rejection measured on a three-tone mixture: target band down more than
 30 dB, neighbouring bands within 5 % of their original energy.
 
 Denoising is spectral gating with a **minimum-statistics** noise floor — for
-each frequency bin, a low percentile across the whole file, on the
-assumption that every bin falls quiet at some point. Honest numbers on a
-noisy version of the demo track:
+each frequency bin, a low percentile across the whole file, on the assumption
+that every bin falls quiet at some point. Honest numbers on a noisy version
+of the demo track:
 
 | Input SNR | After | Δ |
 |---|---|---|
@@ -194,8 +205,9 @@ noisy version of the demo track:
 
 It helps when there is real noise and mildly hurts when there is not — the
 gate's own distortion outweighs what it removes. Stationary material (a tone
-that never stops) breaks the minimum-statistics assumption outright; pass an
-explicit noise region instead.
+that never stops) breaks the minimum-statistics assumption outright, since
+the tone estimates itself as the noise floor; pass an explicit noise region
+instead.
 
 **Griffin-Lim** (`sonify`) — when the magnitude is invented, no phase exists
 to keep. Griffin-Lim alternates projections between "is a real signal" and
@@ -209,8 +221,8 @@ sonogram sonify photo.jpg --preview roundtrip.png
 ![photo round trip](examples/photo_roundtrip.png)
 
 *A picture, encoded as a magnitude spectrum, resynthesised into a 10-second
-wav, then re-analysed. The ridge, moon and stars survive the trip.*
-Spectral convergence falls 0.345 → 0.241 → 0.207 → 0.196 at 1 / 8 / 32 / 64
+wav, then re-analysed. The ridge, moon and stars survive the trip.* Spectral
+convergence falls 0.345 → 0.241 → 0.207 → 0.196 at 1 / 8 / 32 / 64
 iterations.
 
 ---
@@ -230,11 +242,12 @@ the harmonics to a few Hz and smear every transient across 372 ms. Δt·Δf = 1
 throughout — no setting wins both.
 
 Video frames are rasterised in pure NumPy and piped straight into `ffmpeg`
-over `stdin`: no matplotlib per frame, no intermediate PNGs.
+over `stdin`: no matplotlib per frame, no intermediate PNGs, faster than
+realtime at 1280×720 / 30 fps.
 
 Palettes (`ember`, `abyss`, `mono`, `bloom`) are perceptually monotonic.
-`jet` is deliberately absent — its non-uniform lightness invents banding
-that is not in the data.
+`jet` is deliberately absent — its non-uniform lightness invents banding that
+is not in the data.
 
 ---
 
@@ -258,17 +271,40 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 33 passed
+pytest -q     # 34 passed
 ```
 
-Covers: Δt·Δf = 1 across window lengths; a 1 kHz tone peaking within one
-bin; reassignment measurably sharpening a chirp on an identical grid;
-synthetic brick-wall cutoffs at 12/16/19 kHz recovered to within 500 Hz; a
-gentle 6 dB/oct rolloff *not* being flagged as an encoder cutoff; an exact
-STFT→ISTFT round trip; band rejection leaving neighbouring bands intact; and
-Griffin-Lim error decreasing monotonically with iteration count. Plus CLI
-smoke tests that actually execute every subcommand — `--help` passing is not
-evidence that a command runs.
+CI runs the suite on Python 3.11 and 3.12 on every push.
+
+What the suite asserts, beyond "it doesn't crash": Δt·Δf = 1 across window
+lengths; a 1 kHz tone peaking within one FFT bin; reassignment measurably
+sharpening a chirp on an identical grid; synthetic brick-wall cutoffs at
+12/16/19 kHz recovered to within 500 Hz; a gentle 6 dB/oct rolloff *not*
+being flagged as an encoder cutoff; an exact STFT→ISTFT round trip; band
+rejection leaving neighbouring bands intact; and Griffin-Lim error decreasing
+monotonically with iteration count.
+
+There are also CLI smoke tests that execute every subcommand. They exist
+because `--help` passing proves nothing — argparse never invokes the handler,
+so a subcommand whose handler had been deleted sailed through a `--help`
+sweep and shipped broken.
+
+### What CI caught
+
+Two real defects, both invisible on the development machine:
+
+- **`audit` crashed with `NameError`.** Its handler's `def` line was lost in
+  an earlier edit, leaving the body as unreachable code inside another
+  function. The CLI smoke tests now cover this.
+- **Griffin-Lim broke on librosa 0.x.** The code passed librosa 1.0's `rng`
+  argument while `pyproject.toml` declared `librosa>=0.10`, where the same
+  argument is called `random_state`. Anyone installing within the declared
+  range hit a `TypeError`. The 3.11 job resolved an older librosa and
+  surfaced it; the seeding keyword is now detected at runtime.
+
+Both share a shape worth naming: the declared support range was wider than
+the code actually supported, which is exactly the gap a single development
+environment cannot see.
 
 ## Roadmap
 
@@ -279,5 +315,5 @@ evidence that a command runs.
 
 ## Licence
 
-MIT. The demo track is generated by `examples/make_demo_audio.py`; do not commit
-commercial recordings to this repository.
+MIT. The demo track is generated by `examples/make_demo_audio.py`; do not
+commit commercial recordings to this repository.
