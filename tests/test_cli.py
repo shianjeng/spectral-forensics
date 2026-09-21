@@ -85,3 +85,41 @@ def test_audit_single_file(track):
 
 def test_audit_directory_json(track):
     assert main(["audit", str(track.parent), "-r", "--json"]) == 0
+
+
+def test_check_reports_environment():
+    assert main(["check"]) == 0
+    assert main(["check", "--json"]) == 0
+
+
+def test_video_missing_ffmpeg_returns_clear_error(track, monkeypatch, capsys):
+    monkeypatch.setattr("spectral_forensics.video.ffmpeg_available", lambda: False)
+    out = track.parent / "x.mp4"
+    assert main(["video", str(track), "-o", str(out)]) == 1
+    err = capsys.readouterr().err
+    assert "未找到 ffmpeg" in err
+    assert "video" in err
+    assert "mp3/m4a" in err
+
+
+def test_video_minimal_run_when_ffmpeg_available(track, tmp_path):
+    import shutil
+
+    if shutil.which("ffmpeg") is None:
+        pytest.skip("ffmpeg not installed")
+    out = tmp_path / "video.mp4"
+    assert main(
+        [
+            "video",
+            str(track),
+            "-o",
+            str(out),
+            "--fps",
+            "5",
+            "--size",
+            "320x180",
+            "--bars",
+            "24",
+        ]
+    ) == 0
+    assert out.exists()

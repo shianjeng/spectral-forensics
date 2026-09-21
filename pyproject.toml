@@ -2,13 +2,21 @@
 name = "spectral-forensics"
 version = "0.3.0"
 description = "Spectral inspection toolkit: reassigned spectrograms, lossy-transcode forensics, and invertible frequency-domain editing."
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "pillow>=10.0",
     "librosa>=0.10",
     "numpy>=1.24",
     "matplotlib>=3.7",
     "soundfile>=0.12",
+]
+
+[project.optional-dependencies]
+dev = [
+    "build>=1.0",
+    "mypy>=1.10",
+    "pytest>=7.0",
+    "ruff>=0.6",
 ]
 
 [project.urls]
@@ -22,3 +30,24 @@ spectral-forensics = "spectral_forensics.cli:main"
 [build-system]
 requires = ["setuptools>=64"]
 build-backend = "setuptools.build_meta"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+extend-exclude = ["examples"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "RUF022", "BLE", "PLW1510", "S110", "C408"]
+ignore = ["S603", "S607"]
+
+[tool.mypy]
+python_version = "3.12"
+pretty = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[[tool.mypy.overrides]]
+module = "soundfile"
+ignore_missing_imports = true

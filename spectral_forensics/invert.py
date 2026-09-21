@@ -21,6 +21,7 @@ from __future__ import annotations
 import inspect
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import librosa
 import numpy as np
@@ -146,9 +147,11 @@ def mask_from_image(path: str | Path, shape: tuple[int, int],
     使图片顶部对应高频、符合看谱图的直觉。
     """
     from PIL import Image
+    from PIL.Image import Resampling
 
-    img = Image.open(path).convert("L").resize((shape[1], shape[0]),
-                                               Image.LANCZOS)
+    img = Image.open(path).convert("L").resize(
+        (shape[1], shape[0]), Resampling.LANCZOS
+    )
     m = np.asarray(img, dtype=np.float64) / 255.0
     m = m[::-1]                       # 图像行序是从上往下，谱图是从下往上
     return 1.0 - m if invert else m
@@ -156,7 +159,7 @@ def mask_from_image(path: str | Path, shape: tuple[int, int],
 
 # ------------------------------------------------- Griffin-Lim 无相位重建
 
-def _griffinlim_seed_kwarg() -> str:
+def _griffinlim_seed_kwarg() -> Literal["rng", "random_state", ""]:
     """librosa 0.x 用 random_state 给 Griffin-Lim 播种，1.0 改叫 rng。
 
     pyproject 声明的下限是 librosa>=0.10，所以两种都得支持——
@@ -177,17 +180,42 @@ def synthesize(magnitude: np.ndarray, sr: int,
     """从纯幅度谱重建波形（无原始相位可用时）。"""
     cfg = config or SpectroConfig(kind="stft")
 
-    kwargs = dict(
-        n_iter=n_iter, hop_length=cfg.hop_length, win_length=cfg.n_fft,
-        n_fft=cfg.n_fft, window=cfg.window,
-        momentum=momentum, init="random",
-    )
     seed_kwarg = _griffinlim_seed_kwarg()
-    if seed_kwarg:
-        kwargs[seed_kwarg] = seed
-
+    mag = np.asarray(magnitude, dtype=np.float64)
+    if seed_kwarg == "rng":
+        return librosa.griffinlim(
+            mag,
+            n_iter=n_iter,
+            hop_length=cfg.hop_length,
+            win_length=cfg.n_fft,
+            n_fft=cfg.n_fft,
+            window=cfg.window,
+            momentum=momentum,
+            init="random",
+            rng=seed,
+        )
+    if seed_kwarg == "random_state":
+        return librosa.griffinlim(
+            mag,
+            n_iter=n_iter,
+            hop_length=cfg.hop_length,
+            win_length=cfg.n_fft,
+            n_fft=cfg.n_fft,
+            window=cfg.window,
+            momentum=momentum,
+            init="random",
+            random_state=seed,
+        )
     return librosa.griffinlim(
-        np.asarray(magnitude, dtype=np.float64), **kwargs)
+        mag,
+        n_iter=n_iter,
+        hop_length=cfg.hop_length,
+        win_length=cfg.n_fft,
+        n_fft=cfg.n_fft,
+        window=cfg.window,
+        momentum=momentum,
+        init="random",
+    )
 
 
 def spectral_convergence(target_mag: np.ndarray, y: np.ndarray,
@@ -216,6 +244,7 @@ def image_to_magnitude(path: str | Path, sr: int,
     线性排布会把照片挤成一条细线。
     """
     from PIL import Image
+    from PIL.Image import Resampling
 
     cfg = config or SpectroConfig(kind="stft")
     n_bins = cfg.n_fft // 2 + 1
@@ -223,7 +252,9 @@ def image_to_magnitude(path: str | Path, sr: int,
 
     # 先把图缩成 (n_rows, n_frames)，行对应对数频率刻度
     n_rows = 512
-    img = Image.open(path).convert("L").resize((n_frames, n_rows), Image.LANCZOS)
+    img = Image.open(path).convert("L").resize(
+        (n_frames, n_rows), Resampling.LANCZOS
+    )
     L = np.asarray(img, dtype=np.float64)[::-1] / 255.0
 
     db = -dynamic_db * (1.0 - L)

@@ -6,9 +6,16 @@ import librosa
 import numpy as np
 import pytest
 
+from spectral_forensics.invert import (
+    analyze,
+    apply_mask,
+    band_mask,
+    image_to_magnitude,
+    spectral_convergence,
+    spectral_gate,
+    synthesize,
+)
 from spectral_forensics.io import Audio
-from spectral_forensics.invert import (analyze, apply_mask, band_mask, image_to_magnitude,
-                             spectral_convergence, spectral_gate, synthesize)
 from spectral_forensics.transform import SpectroConfig
 
 SR = 22050
