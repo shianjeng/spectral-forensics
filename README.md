@@ -40,8 +40,8 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 ```
 
-Python 3.11 or newer. `ffmpeg` is optional but needed for video output and for
-decoding mp3/m4a/alac fallback paths:
+Python 3.11 or newer. `ffmpeg` is required for video output and for decoding
+mp3/m4a:
 
 ```bash
 sudo apt install ffmpeg     # Debian / Ubuntu
@@ -52,20 +52,6 @@ The demo track used throughout this README is synthesised, not sampled:
 
 ```bash
 python examples/make_demo_audio.py
-```
-
-### Dependencies at a glance
-
-- **Required** (core commands): Python 3.11+, package dependencies from
-  `pyproject.toml`
-- **Optional**: `ffmpeg` for `spf video` and codec fallback decoding
-  (`mp3/m4a/alac` in environments where the default decoder cannot open them)
-
-Quick environment check:
-
-```bash
-spf check
-spf check --json
 ```
 
 ---
@@ -132,6 +118,13 @@ spf audit ~/Music --recursive --verbose
 ? 03 - borderline.flac      cut= 18.8k   55%  → mp3 ~192 kbps
 · 04 - honest.mp3           cut= 16.0k
 ```
+
+![transcode cliffs](examples/audit_cliffs.png)
+
+*One source, encoded at three bitrates, then converted back to FLAC. Below
+the cutoff the four curves are indistinguishable; above it, each encoder's
+brick wall stands where the detector says it does. Reproduce with
+`python examples/make_audit_figure.py`.*
 
 Three independent pieces of evidence, because any one alone produces false
 positives — old recordings and solo acoustic material genuinely lack high
@@ -290,23 +283,6 @@ librosa, so either half is usable alone.
 
 ```bash
 pytest -q     # 34 passed
-```
-
-## Development checks
-
-Install dev toolchain:
-
-```bash
-pip install -e ".[dev]"
-```
-
-Run the standard local checks:
-
-```bash
-pytest -q
-python -m build
-ruff check .
-mypy spectral_forensics tests
 ```
 
 CI runs the suite on Python 3.11 and 3.12 on every push.
