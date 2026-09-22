@@ -9,6 +9,8 @@ sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
 file was ever an mp3, and edit sound in the frequency domain — including
 turning a photograph into something you can hear.
 
+**[→ Try the transcode detector in your browser](https://shianjeng.github.io/spectral-forensics/)** — drop a FLAC in, nothing is uploaded.
+
 *Installs as `spf` (or the full `spectral-forensics`).*
 
 ![reassigned vs standard](examples/reassign_compare.png)
