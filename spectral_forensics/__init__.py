@@ -17,7 +17,7 @@ from .reassign import ReassignedPoints, rasterize, reassign, sharpness
 from .render import comparison, poster
 from .transform import SpectroConfig, Spectrogram, compute
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __all__ = [
     "Audio",
     "AuditResult",

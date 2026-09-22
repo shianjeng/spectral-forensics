@@ -7,6 +7,7 @@ import json
 import sys
 from pathlib import Path
 
+from . import __version__
 from . import io as sio
 from . import render, transform, video
 
@@ -16,6 +17,9 @@ def build_parser() -> argparse.ArgumentParser:
         prog="spf",
         description="把一首歌渲染成声纹海报或频谱视频。",
     )
+    p.add_argument("--version", action="version",
+                   version=f"spectral-forensics {__version__}")
+
     sub = p.add_subparsers(dest="command", required=True)
 
     common = argparse.ArgumentParser(add_help=False)

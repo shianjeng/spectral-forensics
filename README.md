@@ -232,12 +232,16 @@ converges to a local solution, so a metallic quality is inherent, not a bug.
 spf sonify photo.jpg --preview roundtrip.png
 ```
 
+![source photo](examples/source_photo.png)
+
+*Input: an ordinary greyscale picture.*
+
 ![photo round trip](examples/photo_roundtrip.png)
 
-*A picture, encoded as a magnitude spectrum, resynthesised into a 10-second
-wav, then re-analysed. The ridge, moon and stars survive the trip.* Spectral
-convergence falls 0.345 → 0.241 → 0.207 → 0.196 at 1 / 8 / 32 / 64
-iterations.
+*Output, round-tripped: the picture encoded as a magnitude spectrum,
+resynthesised into a 10-second wav, then re-analysed from the audio alone.
+The ridge, moon and stars survive the trip.* Spectral convergence falls
+0.345 → 0.241 → 0.207 → 0.196 at 1 / 8 / 32 / 64 iterations.
 
 ---
 
@@ -336,6 +340,26 @@ Two real defects, both invisible on the development machine:
 Both share a shape worth naming: the declared support range was wider than
 the code actually supported, which is exactly the gap a single development
 environment cannot see.
+
+## References
+
+The algorithms here are not mine; the implementation and the validation are.
+
+- K. Kodera, R. Gendrin, C. de Villedary (1978). *Analysis of time-varying
+  signals with small BT values.* IEEE Trans. ASSP **26**(1), 64–76. — the
+  original reassignment idea.
+- F. Auger, P. Flandrin (1995). *Improving the readability of time-frequency
+  and time-scale representations by the reassignment method.* IEEE Trans.
+  Signal Processing **43**(5), 1068–1089. — the general framework this
+  implementation follows.
+- D. Griffin, J. Lim (1984). *Signal estimation from modified short-time
+  Fourier transform.* IEEE Trans. ASSP **32**(2), 236–243. — the phase
+  reconstruction used by `sonify`.
+- R. Martin (2001). *Noise power spectral density estimation based on optimal
+  smoothing and minimum statistics.* IEEE Trans. Speech and Audio Processing
+  **9**(5), 504–512. — the noise floor used by `edit --denoise`.
+- J. Brown (1991). *Calculation of a constant Q spectral transform.* JASA
+  **89**(1), 425–434. — the basis of `--transform cqt`.
 
 ## Roadmap
 
