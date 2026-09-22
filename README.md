@@ -4,34 +4,27 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
-Not another audio visualiser. A spectral **inspection and editing** toolkit:
-sharpen a spectrogram past the uncertainty limit, tell whether a "lossless"
-file was ever an mp3, and edit sound in the frequency domain — including
-turning a photograph into something you can hear.
+**Is that FLAC actually a re-wrapped mp3?** Every lossy encoder throws away
+everything above a cutoff, and that cliff survives conversion back into a
+lossless container. This scans a whole library and tells you which files to
+look at — and it says out loud what it cannot catch.
 
-**[→ Try the transcode detector in your browser](https://shianjeng.github.io/spectral-forensics/)** — drop a FLAC in, nothing is uploaded.
+**[→ Try it in your browser](https://shianjeng.github.io/spectral-forensics/)**
+— drop a file in, nothing is uploaded.
 
-*Installs as `spf` (or the full `spectral-forensics`).*
+![transcode cliffs](examples/audit_cliffs.png)
 
-![reassigned vs standard](examples/reassign_compare.png)
+*One source, encoded at three bitrates, then converted back to FLAC. Below the
+cutoff the four curves are indistinguishable; above it, each encoder's brick
+wall stands where the detector says it does. Reproduce it yourself with
+`python examples/make_audit_figure.py`.*
 
-*Same audio, same window, same grid. Top: conventional STFT. Bottom: after
-reassignment. The harmonics collapse to hairlines and the kick drum's pitch
-glide — invisible above — becomes a readable curve.*
+That detector is one of four things built on the same spectral machinery. The
+other three: editing sound in the frequency domain and inverting back to a
+waveform, sharpening a spectrogram past the time–frequency uncertainty limit,
+and rendering posters and spectrum video.
 
 ---
-
-## What it does
-
-| Command | Purpose |
-|---|---|
-| `reassign` | Reassigned spectrogram — resolution beyond Δt·Δf ≥ 1 |
-| `audit` | Detect lossy transcodes in a music library |
-| `edit` | Edit in the frequency domain, reconstruct with the original phase |
-| `sonify` | Encode an image into a spectrum and resynthesise it as audio |
-| `poster` | Static sonogram (STFT / mel / CQT) |
-| `video` | Spectrum video with the original audio muxed in |
-| `compare` | Side-by-side window-length comparison |
 
 ## Install
 
@@ -39,82 +32,42 @@ glide — invisible above — becomes a readable curve.*
 pip install spectral-forensics
 ```
 
-Or from source, if you want the examples and tests:
+Python 3.11 or newer. Installs as `spf` (or the full `spectral-forensics`).
+`ffmpeg` is optional — it is needed for video output and for decoding some
+mp3/m4a files. Check what you have:
+
+```bash
+spf check
+```
+
+From source, if you want the examples and tests:
 
 ```bash
 git clone https://github.com/shianjeng/spectral-forensics.git
 cd spectral-forensics
 python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-```
-
-Python 3.11 or newer. `ffmpeg` is required for video output and for decoding
-mp3/m4a:
-
-```bash
-sudo apt install ffmpeg     # Debian / Ubuntu
-brew install ffmpeg         # macOS
-```
-
-The demo track used throughout this README is synthesised, not sampled:
-
-```bash
-python examples/make_demo_audio.py
+pip install -e ".[dev]"
+python examples/make_demo_audio.py      # the demo track used below
 ```
 
 ---
 
-## 1. Reassigned spectrogram
+## What it does
 
-A pure tone always draws as a *band* in a normal spectrogram. That width is
-imposed by the window, not by the signal — a direct consequence of
-
-```
-Δt = n_fft / sr     Δf = sr / n_fft     Δt · Δf = 1
-```
-
-But an STFT bin carries more than a magnitude: it carries a phase. Taking
-partial derivatives of that phase recovers where the energy inside the bin
-actually sits:
-
-```
-instantaneous frequency   ω̂ = ω − ∂φ/∂t
-group delay               t̂ = t + ∂φ/∂ω
-```
-
-Move each bin's energy from its cell to `(t̂, ω̂)` and the picture becomes
-sharper than the uncertainty bound. This is not a violation: the bound
-constrains the *width of a single time–frequency atom*, not the *precision
-with which you can estimate the location of its energy* — the same
-distinction that lets centroid localisation beat the diffraction limit in
-microscopy.
-
-```bash
-spf reassign track.flac --hop 256 --side-by-side
-```
-
-```
-sharpness (spectral concentration): standard 5.116 → reassigned 5.389
-```
-
-A test states the claim numerically rather than leaving it to the eye: for a
-1 kHz tone with `n_fft=2048` at 22.05 kHz (Δf = 10.8 Hz), the
-magnitude-weighted spread of reassigned frequency estimates stays **under one
-FFT bin**.
-
-Where it fails: reassignment relies on the phase derivative being
-meaningful, so overlapping partials and low-SNR regions scatter. Anything
-below `--mag-top-db` is discarded rather than plotted as noise.
-
-![reassigned poster](examples/poster_reassigned.png)
+| Command | Purpose |
+|---|---|
+| `audit` | Detect lossy transcodes across a music library |
+| `edit` | Edit in the frequency domain, reconstruct with the original phase |
+| `sonify` | Encode an image into a spectrum and resynthesise it as audio |
+| `reassign` | Reassigned spectrogram — resolution beyond Δt·Δf ≥ 1 |
+| `poster` | Static sonogram (STFT / mel / CQT) |
+| `video` | Spectrum video with the original audio muxed in |
+| `compare` | Side-by-side window-length comparison |
+| `check` | Report the environment: Python version, ffmpeg, which features work |
 
 ---
 
-## 2. Transcode audit
-
-A real problem for anyone with a music library: **is this FLAC actually a
-re-wrapped mp3?** Lossy encoders discard everything above a cutoff. Convert
-the result back to FLAC and the container changes, but the cliff stays.
+## 1. Is it really lossless?
 
 ```bash
 spf audit ~/Music --recursive --verbose
@@ -127,12 +80,21 @@ spf audit ~/Music --recursive --verbose
 · 04 - honest.mp3           cut= 16.0k
 ```
 
-![transcode cliffs](examples/audit_cliffs.png)
+### Try it without installing anything
 
-*One source, encoded at three bitrates, then converted back to FLAC. Below
-the cutoff the four curves are indistinguishable; above it, each encoder's
-brick wall stands where the detector says it does. Reproduce with
-`python examples/make_audit_figure.py`.*
+[shianjeng.github.io/spectral-forensics](https://shianjeng.github.io/spectral-forensics/)
+runs the same cutoff, steepness and intensity-stereo tests in the browser
+using the Web Audio API. The file is decoded and analysed locally and never
+leaves the machine. `tests/test_web_parity.py` feeds identical signals to both
+implementations and asserts they land on the same FFT bin.
+
+Porting it paid for itself immediately: the JavaScript version disagreed with
+Python on a 16 kHz brick wall, and **Python was the one that was wrong**.
+`librosa.stft` pads both ends by default, and the step at the padding boundary
+is broadband, so the first and last frames have a full spectrum. On short
+clips those two frames carry enough weight in the 95th percentile to hide the
+cutoff entirely. Passing `center=False` fixed it and made the result
+independent of clip length.
 
 Three independent pieces of evidence, because any one alone produces false
 positives — old recordings and solo acoustic material genuinely lack high
@@ -170,22 +132,6 @@ converted back to FLAC:
 | `cut_16000.flac` | 16.0 kHz | 16.0 kHz | ⚠ → ~128 kbps |
 | `cut_17500.flac` | 17.5 kHz | 17.4 kHz | ⚠ → ~160 kbps |
 | `cut_19000.flac` | 19.0 kHz | 18.8 kHz | ⚠ → ~192 kbps |
-
-### Try it without installing anything
-
-[shianjeng.github.io/spectral-forensics](https://shianjeng.github.io/spectral-forensics/)
-runs the same cutoff, steepness and intensity-stereo tests in the browser
-using the Web Audio API. The file is decoded and analysed locally and never
-leaves the machine. `tests/test_web_parity.py` feeds identical signals to both
-implementations and asserts they land on the same FFT bin.
-
-Porting it paid for itself immediately: the JavaScript version disagreed with
-Python on a 16 kHz brick wall, and **Python was the one that was wrong**.
-`librosa.stft` pads both ends by default, and the step at the padding boundary
-is broadband, so the first and last frames have a full spectrum. On short
-clips those two frames carry enough weight in the 95th percentile to hide the
-cutoff entirely. Passing `center=False` fixed it and made the result
-independent of clip length.
 
 ### Compared with existing tools
 
@@ -248,7 +194,7 @@ evidence", not as proof of provenance.
 
 ---
 
-## 3. Invertible editing
+## 2. Invertible editing
 
 The spectrogram stops being the end of the pipeline and becomes an editable
 medium. Two reconstruction paths, for two different situations:
@@ -311,6 +257,58 @@ The ridge, moon and stars survive the trip.* Spectral convergence falls
 
 ---
 
+## 3. Reassigned spectrogram
+
+A pure tone always draws as a *band* in a normal spectrogram. That width is
+imposed by the window, not by the signal — a direct consequence of
+
+```
+Δt = n_fft / sr     Δf = sr / n_fft     Δt · Δf = 1
+```
+
+But an STFT bin carries more than a magnitude: it carries a phase. Taking
+partial derivatives of that phase recovers where the energy inside the bin
+actually sits:
+
+```
+instantaneous frequency   ω̂ = ω − ∂φ/∂t
+group delay               t̂ = t + ∂φ/∂ω
+```
+
+Move each bin's energy from its cell to `(t̂, ω̂)` and the picture becomes
+sharper than the uncertainty bound. This is not a violation: the bound
+constrains the *width of a single time–frequency atom*, not the *precision
+with which you can estimate the location of its energy* — the same
+distinction that lets centroid localisation beat the diffraction limit in
+microscopy.
+
+```bash
+spf reassign track.flac --hop 256 --side-by-side
+```
+
+![reassigned vs standard](examples/reassign_compare.png)
+
+*Same audio, same window, same grid. Top: conventional STFT. Bottom: after
+reassignment. The harmonics collapse to hairlines and the kick drum's pitch
+glide — invisible above — becomes a readable curve.*
+
+```
+sharpness (spectral concentration): standard 5.116 → reassigned 5.389
+```
+
+A test states the claim numerically rather than leaving it to the eye: for a
+1 kHz tone with `n_fft=2048` at 22.05 kHz (Δf = 10.8 Hz), the
+magnitude-weighted spread of reassigned frequency estimates stays **under one
+FFT bin**.
+
+Where it fails: reassignment relies on the phase derivative being
+meaningful, so overlapping partials and low-SNR regions scatter. Anything
+below `--mag-top-db` is discarded rather than plotted as noise.
+
+![reassigned poster](examples/poster_reassigned.png)
+
+---
+
 ## 4. Posters, video, window comparison
 
 ```bash
@@ -355,7 +353,7 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 50 passed
+pytest -q     # 55 passed
 ```
 
 CI runs the suite on Python 3.11 and 3.12 on every push.
