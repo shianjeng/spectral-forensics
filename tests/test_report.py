@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -18,22 +19,26 @@ from spectral_forensics.report import build_report, write_report
 SR = 44100
 
 
-def fake_result(**kw) -> AuditResult:
-    base = {
-        "path": "/music/track.flac",
-        "verdict": "suspect",
-        "confidence": 0.9,
-        "cutoff_khz": 16.0,
-        "nyquist_khz": 22.05,
-        "steepness_db": 74.0,
-        "stereo_cutoff_khz": None,
-        "codec": "flac",
-        "declared_kbps": None,
-        "guess": "mp3 ~128 kbps",
-        "notes": ["砖墙特征"],
-    }
-    base.update(kw)
-    return AuditResult(**base)
+def fake_result(**kw: object) -> AuditResult:
+    """造一条审计结果。
+
+    用 dataclasses.replace 而不是 **dict 展开：字典字面量会被推断成
+    dict[str, object]，展开时每个字段的具体类型就丢了，mypy 会逐个报错。
+    """
+    base = AuditResult(
+        path="/music/track.flac",
+        verdict="suspect",
+        confidence=0.9,
+        cutoff_khz=16.0,
+        nyquist_khz=22.05,
+        steepness_db=74.0,
+        stereo_cutoff_khz=None,
+        codec="flac",
+        declared_kbps=None,
+        guess="mp3 ~128 kbps",
+        notes=["砖墙特征"],
+    )
+    return replace(base, **kw)  # type: ignore[arg-type]
 
 
 def test_report_lists_every_file_and_counts_the_tiers():
