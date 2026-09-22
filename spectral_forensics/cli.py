@@ -7,9 +7,8 @@ import json
 import sys
 from pathlib import Path
 
-from . import __version__
+from . import __version__, render, transform, video
 from . import io as sio
-from . import render, transform, video
 
 
 def build_parser() -> argparse.ArgumentParser:
