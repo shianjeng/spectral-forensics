@@ -34,6 +34,12 @@ glide — invisible above — becomes a readable curve.*
 ## Install
 
 ```bash
+pip install spectral-forensics
+```
+
+Or from source, if you want the examples and tests:
+
+```bash
 git clone https://github.com/shianjeng/spectral-forensics.git
 cd spectral-forensics
 python3 -m venv .venv && source .venv/bin/activate
@@ -163,6 +169,41 @@ converted back to FLAC:
 | `cut_17500.flac` | 17.5 kHz | 17.4 kHz | ⚠ → ~160 kbps |
 | `cut_19000.flac` | 19.0 kHz | 18.8 kHz | ⚠ → ~192 kbps |
 
+### Try it without installing anything
+
+[shianjeng.github.io/spectral-forensics](https://shianjeng.github.io/spectral-forensics/)
+runs the same cutoff, steepness and intensity-stereo tests in the browser
+using the Web Audio API. The file is decoded and analysed locally and never
+leaves the machine. `tests/test_web_parity.py` feeds identical signals to both
+implementations and asserts they land on the same FFT bin.
+
+Porting it paid for itself immediately: the JavaScript version disagreed with
+Python on a 16 kHz brick wall, and **Python was the one that was wrong**.
+`librosa.stft` pads both ends by default, and the step at the padding boundary
+is broadband, so the first and last frames have a full spectrum. On short
+clips those two frames carry enough weight in the 95th percentile to hide the
+cutoff entirely. Passing `center=False` fixed it and made the result
+independent of clip length.
+
+### Compared with existing tools
+
+[Spek](https://www.spek.cc/) draws you a spectrogram and leaves the judgement
+to you — excellent for a single file, useless for a library of forty thousand.
+*fakin' the funk?!* automates the judgement but is closed-source and
+Windows-only. This project gives you an open-source CLI that scans a whole
+tree, reports the implied bitrate, exports a shareable HTML report, and — the
+part most tools skip — states its own failure modes.
+
+### Batch reports
+
+```bash
+spf audit ~/Music --recursive --html report.html
+```
+
+A single self-contained HTML file: every flagged track gets its own long-term
+spectrum with the detected cutoff marked, so the evidence travels with the
+verdict instead of scrolling out of a terminal.
+
 ### Known limitation
 
 Encoders that apply **no** hard lowpass — ffmpeg's native AAC at higher
@@ -282,7 +323,7 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 34 passed
+pytest -q     # 50 passed
 ```
 
 CI runs the suite on Python 3.11 and 3.12 on every push.

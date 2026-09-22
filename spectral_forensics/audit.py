@@ -119,7 +119,11 @@ def long_term_spectrum(y: np.ndarray, sr: int, n_fft: int = 8192,
     取分位数而不是平均，是因为整曲平均会被安静段落拖低，把真实的高频内容
     埋进噪声里；而取最大值又容易被单个瞬态毛刺带偏。95 分位是折中。
     """
-    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=n_fft // 2)) ** 2
+    # center=False 很关键：默认的两端补零会制造阶跃，那是宽带的，
+    # 首尾两帧整个频谱都被填满。信号越短帧数越少，这两帧在高分位里的
+    # 权重就越大，短到一定程度会把截止判据整个淹掉。只分析真实存在的帧。
+    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=n_fft // 2,
+                            center=False)) ** 2
     ltas = np.percentile(S, percentile, axis=1)
     db = 10.0 * np.log10(ltas + 1e-20)
     freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)

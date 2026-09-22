@@ -93,6 +93,10 @@ def build_parser() -> argparse.ArgumentParser:
     sa.add_argument("--json", action="store_true", help="输出 JSON 而非表格")
     sa.add_argument("--only-suspect", action="store_true",
                     help="只列出可疑和存疑的文件")
+    sa.add_argument("--html", metavar="FILE",
+                    help="同时导出一份可分享的 HTML 报告（含谱图缩略图）")
+    sa.add_argument("--no-thumbnails", action="store_true",
+                    help="HTML 报告不画缩略图（大库更快）")
     sa.add_argument("--seconds", type=float, default=120.0, help="每个文件分析时长")
     sa.add_argument("--no-stereo-check", action="store_true",
                     help="跳过强度立体声检测（更快）")
@@ -332,6 +336,12 @@ def _run_audit(args) -> int:
     )
     if args.only_suspect:
         results = [r for r in results if r.verdict in ("suspect", "likely", "unknown")]
+
+    if getattr(args, "html", None):
+        from .report import write_report
+        path = write_report(results, args.html, args.input,
+                            thumbnails=not args.no_thumbnails)
+        print(f"已生成报告: {path}")
 
     if args.json:
         print(_json.dumps([r.as_dict() for r in results],
