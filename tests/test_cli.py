@@ -25,9 +25,11 @@ def track(tmp_path_factory) -> Path:
     p = d / "track.wav"
     t = np.linspace(0, 2.0, int(SR * 2.0), endpoint=False)
     rng = np.random.default_rng(0)
-    y = (0.5 * np.sin(2 * np.pi * 440 * t)
-         + 0.2 * np.sin(2 * np.pi * 1800 * t)
-         + 0.02 * rng.standard_normal(len(t)))
+    y = (
+        0.5 * np.sin(2 * np.pi * 440 * t)
+        + 0.2 * np.sin(2 * np.pi * 1800 * t)
+        + 0.02 * rng.standard_normal(len(t))
+    )
     sf.write(p, y.astype(np.float32), SR)
     return p
 
@@ -49,8 +51,7 @@ def test_poster(track, tmp_path):
 
 def test_compare(track, tmp_path):
     out = tmp_path / "cmp.png"
-    assert main(["compare", str(track), "-o", str(out),
-                 "--n-ffts", "512,2048"]) == 0
+    assert main(["compare", str(track), "-o", str(out), "--n-ffts", "512,2048"]) == 0
     assert out.exists()
 
 
@@ -62,8 +63,7 @@ def test_reassign(track, tmp_path):
 
 def test_edit(track, tmp_path):
     out = tmp_path / "edited.wav"
-    assert main(["edit", str(track), "--reject", "1000:2000",
-                 "-o", str(out)]) == 0
+    assert main(["edit", str(track), "--reject", "1000:2000", "-o", str(out)]) == 0
     assert out.exists()
 
 
@@ -74,8 +74,12 @@ def test_edit_without_any_operation_fails(track, tmp_path):
 
 def test_sonify(picture, tmp_path):
     out = tmp_path / "sonified.wav"
-    assert main(["sonify", str(picture), "-o", str(out),
-                 "--frames", "120", "--iters", "4"]) == 0
+    assert (
+        main(
+            ["sonify", str(picture), "-o", str(out), "--frames", "120", "--iters", "4"]
+        )
+        == 0
+    )
     assert out.exists()
 
 
@@ -108,18 +112,21 @@ def test_video_minimal_run_when_ffmpeg_available(track, tmp_path):
     if shutil.which("ffmpeg") is None:
         pytest.skip("ffmpeg not installed")
     out = tmp_path / "video.mp4"
-    assert main(
-        [
-            "video",
-            str(track),
-            "-o",
-            str(out),
-            "--fps",
-            "5",
-            "--size",
-            "320x180",
-            "--bars",
-            "24",
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "video",
+                str(track),
+                "-o",
+                str(out),
+                "--fps",
+                "5",
+                "--size",
+                "320x180",
+                "--bars",
+                "24",
+            ]
+        )
+        == 0
+    )
     assert out.exists()

@@ -24,8 +24,19 @@ import librosa
 import numpy as np
 import soundfile as sf
 
-AUDIO_SUFFIXES = {".flac", ".wav", ".aiff", ".aif", ".m4a", ".mp3",
-                  ".ogg", ".opus", ".wv", ".ape", ".alac"}
+AUDIO_SUFFIXES = {
+    ".flac",
+    ".wav",
+    ".aiff",
+    ".aif",
+    ".m4a",
+    ".mp3",
+    ".ogg",
+    ".opus",
+    ".wv",
+    ".ape",
+    ".alac",
+}
 
 LOSSLESS_SUFFIXES = {".flac", ".wav", ".aiff", ".aif", ".wv", ".ape", ".alac"}
 
@@ -49,22 +60,22 @@ class Probe:
     codec: str = "?"
     sample_rate: int = 0
     channels: int = 0
-    bit_rate: int | None = None     # bps
+    bit_rate: int | None = None  # bps
     duration: float = 0.0
 
 
 @dataclass
 class AuditResult:
     path: str
-    verdict: str                    # clean / likely / suspect / lossy / unknown
-    confidence: float               # 0–1
+    verdict: str  # clean / likely / suspect / lossy / unknown
+    confidence: float  # 0–1
     cutoff_khz: float | None
     nyquist_khz: float
-    steepness_db: float | None      # 悬崖处的跌落幅度
-    stereo_cutoff_khz: float | None # 强度立体声起点
+    steepness_db: float | None  # 悬崖处的跌落幅度
+    stereo_cutoff_khz: float | None  # 强度立体声起点
     codec: str
     declared_kbps: float | None
-    guess: str                      # 推测的原始编码
+    guess: str  # 推测的原始编码
     notes: list[str]
 
     def as_dict(self) -> dict:
@@ -73,13 +84,26 @@ class AuditResult:
 
 # ---------------------------------------------------------------- 容器信息
 
+
 def probe(path: Path) -> Probe:
     """调 ffprobe 拿编解码信息。失败就回落到 soundfile。"""
     try:
         out = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json",
-             "-show_streams", "-show_format", "-select_streams", "a:0", str(path)],
-            capture_output=True, timeout=30, check=False,
+            [
+                "ffprobe",
+                "-v",
+                "quiet",
+                "-print_format",
+                "json",
+                "-show_streams",
+                "-show_format",
+                "-select_streams",
+                "a:0",
+                str(path),
+            ],
+            capture_output=True,
+            timeout=30,
+            check=False,
         )
         if out.returncode != 0:
             raise RuntimeError("ffprobe failed")
@@ -104,16 +128,22 @@ def probe(path: Path) -> Probe:
     ):
         try:
             info = sf.info(str(path))
-            return Probe(codec=info.subtype or "?", sample_rate=info.samplerate,
-                         channels=info.channels, duration=info.duration)
+            return Probe(
+                codec=info.subtype or "?",
+                sample_rate=info.samplerate,
+                channels=info.channels,
+                duration=info.duration,
+            )
         except (OSError, RuntimeError, TypeError, ValueError):
             return Probe()
 
 
 # ---------------------------------------------------------------- 频谱统计
 
-def long_term_spectrum(y: np.ndarray, sr: int, n_fft: int = 8192,
-                       percentile: float = 95.0) -> tuple[np.ndarray, np.ndarray]:
+
+def long_term_spectrum(
+    y: np.ndarray, sr: int, n_fft: int = 8192, percentile: float = 95.0
+) -> tuple[np.ndarray, np.ndarray]:
     """长时谱：每个频点在时间轴上取高分位数。
 
     取分位数而不是平均，是因为整曲平均会被安静段落拖低，把真实的高频内容
@@ -122,8 +152,7 @@ def long_term_spectrum(y: np.ndarray, sr: int, n_fft: int = 8192,
     # center=False 很关键：默认的两端补零会制造阶跃，那是宽带的，
     # 首尾两帧整个频谱都被填满。信号越短帧数越少，这两帧在高分位里的
     # 权重就越大，短到一定程度会把截止判据整个淹掉。只分析真实存在的帧。
-    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=n_fft // 2,
-                            center=False)) ** 2
+    S = np.abs(librosa.stft(y, n_fft=n_fft, hop_length=n_fft // 2, center=False)) ** 2
     ltas = np.percentile(S, percentile, axis=1)
     db = 10.0 * np.log10(ltas + 1e-20)
     freqs = librosa.fft_frequencies(sr=sr, n_fft=n_fft)
@@ -135,8 +164,9 @@ def _smooth(x: np.ndarray, width: int = 9) -> np.ndarray:
     return np.convolve(x, k, mode="same")
 
 
-def find_cutoff(freqs: np.ndarray, db: np.ndarray,
-                drop_db: float = 50.0) -> tuple[float | None, float | None]:
+def find_cutoff(
+    freqs: np.ndarray, db: np.ndarray, drop_db: float = 50.0
+) -> tuple[float | None, float | None]:
     """找截止频率和悬崖陡峭度。
 
     返回 (cutoff_hz, steepness_db)。steepness 定义为截止点往上 1 kHz 之内
@@ -165,8 +195,9 @@ def find_cutoff(freqs: np.ndarray, db: np.ndarray,
     return f_c, steepness
 
 
-def intensity_stereo_cutoff(path: Path, sr: int = 44100,
-                            n_fft: int = 4096) -> float | None:
+def intensity_stereo_cutoff(
+    path: Path, sr: int = 44100, n_fft: int = 4096
+) -> float | None:
     """找强度立体声的起始频率。
 
     联合立体声在高频会把左右声道合并成一个单声道加权重，于是边信号
@@ -174,6 +205,7 @@ def intensity_stereo_cutoff(path: Path, sr: int = 44100,
     和低通截止互相印证。
     """
     from .io import load_raw
+
     try:
         y, sr_actual = load_raw(path, sr=sr, mono=False)
     except (OSError, RuntimeError, TypeError, ValueError):
@@ -184,12 +216,13 @@ def intensity_stereo_cutoff(path: Path, sr: int = 44100,
     mid = (y[0] + y[1]) / 2.0
     side = (y[0] - y[1]) / 2.0
     if np.max(np.abs(side)) < 1e-5:
-        return None   # 本来就是假立体声，无从判断
+        return None  # 本来就是假立体声，无从判断
 
     M = np.abs(librosa.stft(mid, n_fft=n_fft)) ** 2
     S = np.abs(librosa.stft(side, n_fft=n_fft)) ** 2
-    ratio = 10.0 * np.log10(S.mean(axis=1) + 1e-20) - \
-            10.0 * np.log10(M.mean(axis=1) + 1e-20)
+    ratio = 10.0 * np.log10(S.mean(axis=1) + 1e-20) - 10.0 * np.log10(
+        M.mean(axis=1) + 1e-20
+    )
     ratio = _smooth(ratio, 7)
     freqs = librosa.fft_frequencies(sr=sr_actual, n_fft=n_fft)
 
@@ -214,17 +247,22 @@ def guess_source(cutoff_khz: float) -> str:
 
 # ---------------------------------------------------------------- 主流程
 
-def audit_file(path: str | Path, analysis_sr: int = 44100,
-               max_seconds: float = 120.0,
-               check_stereo: bool = True) -> AuditResult:
+
+def audit_file(
+    path: str | Path,
+    analysis_sr: int = 44100,
+    max_seconds: float = 120.0,
+    check_stereo: bool = True,
+) -> AuditResult:
     """审计单个文件，给出是否为有损转码的判断。"""
     path = Path(path)
     info = probe(path)
     notes: list[str] = []
 
     from .io import load_raw
+
     y, sr = load_raw(path, sr=analysis_sr, mono=True, duration=max_seconds)
-    nyq = sr / 2000.0   # kHz
+    nyq = sr / 2000.0  # kHz
 
     freqs, db = long_term_spectrum(y, sr)
     f_c, steep = find_cutoff(freqs, db)
@@ -242,10 +280,10 @@ def audit_file(path: str | Path, analysis_sr: int = 44100,
     score = 0.0
     if cutoff_khz is not None:
         headroom = nyq - cutoff_khz
-        if headroom > 1.2:                       # 明显没画满整个频带
+        if headroom > 1.2:  # 明显没画满整个频带
             score += 0.45
             if steep is not None and steep >= 20.0:
-                score += 0.30                    # 砖墙
+                score += 0.30  # 砖墙
                 notes.append(f"截止处 1 kHz 内再跌 {steep:.0f} dB，呈砖墙特征")
             elif steep is not None:
                 notes.append(f"截止处跌落仅 {steep:.0f} dB，更像自然衰减")
@@ -272,15 +310,22 @@ def audit_file(path: str | Path, analysis_sr: int = 44100,
                 verdict = "suspect"
                 notes.append("高码率标称配低频谱上限，疑似低码率文件二次编码")
     elif score >= 0.70:
-        verdict = "suspect"      # 低通 + 砖墙，通常还落在编码器常用档位上
+        verdict = "suspect"  # 低通 + 砖墙，通常还落在编码器常用档位上
     elif score >= 0.45:
-        verdict = "likely"       # 只有低通，缺少砖墙或立体声佐证
+        verdict = "likely"  # 只有低通，缺少砖墙或立体声佐证
     else:
         verdict = "clean"
 
-    if info.sample_rate and info.sample_rate > 48000 and cutoff_khz and cutoff_khz < 22.0:
-        notes.append(f"容器标称 {info.sample_rate/1000:.1f} kHz 采样率，"
-                     f"但实际内容止于 {cutoff_khz:.1f} kHz，疑似上采样")
+    if (
+        info.sample_rate
+        and info.sample_rate > 48000
+        and cutoff_khz
+        and cutoff_khz < 22.0
+    ):
+        notes.append(
+            f"容器标称 {info.sample_rate / 1000:.1f} kHz 采样率，"
+            f"但实际内容止于 {cutoff_khz:.1f} kHz，疑似上采样"
+        )
 
     return AuditResult(
         path=str(path),
@@ -297,26 +342,37 @@ def audit_file(path: str | Path, analysis_sr: int = 44100,
     )
 
 
-def audit_path(root: str | Path, recursive: bool = True,
-               **kwargs) -> list[AuditResult]:
+def audit_path(root: str | Path, recursive: bool = True, **kwargs) -> list[AuditResult]:
     """审计一个文件或整个目录。"""
     root = Path(root)
     if root.is_file():
         return [audit_file(root, **kwargs)]
 
     pattern = "**/*" if recursive else "*"
-    files = sorted(p for p in root.glob(pattern)
-                   if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES)
+    files = sorted(
+        p
+        for p in root.glob(pattern)
+        if p.is_file() and p.suffix.lower() in AUDIO_SUFFIXES
+    )
     results = []
     for p in files:
         try:
             results.append(audit_file(p, **kwargs))
         except (OSError, RuntimeError, TypeError, ValueError) as exc:
             # 坏文件不该中断整库扫描
-            results.append(AuditResult(
-                path=str(p), verdict="unknown", confidence=0.0,
-                cutoff_khz=None, nyquist_khz=0.0, steepness_db=None,
-                stereo_cutoff_khz=None, codec="?", declared_kbps=None,
-                guess="—", notes=[f"读取失败: {exc}"],
-            ))
+            results.append(
+                AuditResult(
+                    path=str(p),
+                    verdict="unknown",
+                    confidence=0.0,
+                    cutoff_khz=None,
+                    nyquist_khz=0.0,
+                    steepness_db=None,
+                    stereo_cutoff_khz=None,
+                    codec="?",
+                    declared_kbps=None,
+                    guess="—",
+                    notes=[f"读取失败: {exc}"],
+                )
+            )
     return results

@@ -32,9 +32,9 @@ from .transform import SpectroConfig, Spectrogram
 class ReassignedPoints:
     """重分配后的散点云。"""
 
-    times: np.ndarray      # 每个点的修正时刻（秒）
-    freqs: np.ndarray      # 每个点的修正频率（Hz）
-    weights: np.ndarray    # 每个点的功率
+    times: np.ndarray  # 每个点的修正时刻（秒）
+    freqs: np.ndarray  # 每个点的修正频率（Hz）
+    weights: np.ndarray  # 每个点的功率
     sr: int
     duration: float
 
@@ -42,8 +42,12 @@ class ReassignedPoints:
         return len(self.times)
 
 
-def reassign(audio: Audio, config: SpectroConfig | None = None,
-             mag_top_db: float = 60.0, enabled: bool = True) -> ReassignedPoints:
+def reassign(
+    audio: Audio,
+    config: SpectroConfig | None = None,
+    mag_top_db: float = 60.0,
+    enabled: bool = True,
+) -> ReassignedPoints:
     """计算重分配谱，返回筛选后的散点云。
 
     mag_top_db 之下的格点直接丢弃：那些地方相位是噪声，修正量没有意义，
@@ -56,34 +60,49 @@ def reassign(audio: Audio, config: SpectroConfig | None = None,
 
     if enabled:
         freqs, times, mags = librosa.reassigned_spectrogram(
-            y=audio.y, sr=audio.sr, n_fft=cfg.n_fft,
-            hop_length=cfg.hop_length, window=cfg.window,
-            fill_nan=True, clip=True,
+            y=audio.y,
+            sr=audio.sr,
+            n_fft=cfg.n_fft,
+            hop_length=cfg.hop_length,
+            window=cfg.window,
+            fill_nan=True,
+            clip=True,
         )
     else:
-        mags = np.abs(librosa.stft(audio.y, n_fft=cfg.n_fft,
-                                   hop_length=cfg.hop_length, window=cfg.window))
+        mags = np.abs(
+            librosa.stft(
+                audio.y, n_fft=cfg.n_fft, hop_length=cfg.hop_length, window=cfg.window
+            )
+        )
         f_axis = librosa.fft_frequencies(sr=audio.sr, n_fft=cfg.n_fft)
-        t_axis = librosa.frames_to_time(np.arange(mags.shape[1]),
-                                        sr=audio.sr, hop_length=cfg.hop_length)
+        t_axis = librosa.frames_to_time(
+            np.arange(mags.shape[1]), sr=audio.sr, hop_length=cfg.hop_length
+        )
         freqs = np.repeat(f_axis[:, None], mags.shape[1], axis=1)
         times = np.repeat(t_axis[None, :], mags.shape[0], axis=0)
 
-    power = mags ** 2
+    power = mags**2
     db = librosa.power_to_db(power, ref=np.max, top_db=None)
     keep = (db > -mag_top_db) & np.isfinite(freqs) & np.isfinite(times)
 
     return ReassignedPoints(
-        times=times[keep], freqs=freqs[keep],
-        weights=power[keep], sr=audio.sr,
+        times=times[keep],
+        freqs=freqs[keep],
+        weights=power[keep],
+        sr=audio.sr,
         duration=audio.duration,
     )
 
 
-def rasterize(points: ReassignedPoints, n_time: int = 1400,
-              n_freq: int = 600, fmin: float = 20.0,
-              fmax: float | None = None, log_freq: bool = True,
-              top_db: float = 80.0) -> Spectrogram:
+def rasterize(
+    points: ReassignedPoints,
+    n_time: int = 1400,
+    n_freq: int = 600,
+    fmin: float = 20.0,
+    fmax: float | None = None,
+    log_freq: bool = True,
+    top_db: float = 80.0,
+) -> Spectrogram:
     """把散点云落到规则网格上，好让 render.poster 直接画。
 
     频率方向默认用对数分箱：重分配的意义在于锐化谐波线，而谐波在对数轴上
@@ -98,18 +117,28 @@ def rasterize(points: ReassignedPoints, n_time: int = 1400,
     edges_t = np.linspace(0.0, points.duration, n_time + 1)
 
     H, _, _ = np.histogram2d(
-        points.times, points.freqs,
-        bins=(edges_t, edges_f), weights=points.weights,
+        points.times,
+        points.freqs,
+        bins=(edges_t, edges_f),
+        weights=points.weights,
     )
-    S_power = H.T   # → (n_freq, n_time)
+    S_power = H.T  # → (n_freq, n_time)
 
     S_db = librosa.power_to_db(S_power + 1e-12, ref=np.max, top_db=top_db)
-    centers_f = np.sqrt(edges_f[:-1] * edges_f[1:]) if log_freq else \
-        0.5 * (edges_f[:-1] + edges_f[1:])
+    centers_f = (
+        np.sqrt(edges_f[:-1] * edges_f[1:])
+        if log_freq
+        else 0.5 * (edges_f[:-1] + edges_f[1:])
+    )
     centers_t = 0.5 * (edges_t[:-1] + edges_t[1:])
 
-    return Spectrogram(S_db=S_db, times=centers_t, freqs=centers_f,
-                       sr=points.sr, config=SpectroConfig(kind="stft"))
+    return Spectrogram(
+        S_db=S_db,
+        times=centers_t,
+        freqs=centers_f,
+        sr=points.sr,
+        config=SpectroConfig(kind="stft"),
+    )
 
 
 def sharpness(spec: Spectrogram) -> float:
@@ -120,4 +149,4 @@ def sharpness(spec: Spectrogram) -> float:
     p = np.exp(spec.S_db / 10.0 * np.log(10.0))
     p = p / (p.sum() + 1e-20)
     entropy = -(p * np.log(p + 1e-20)).sum()
-    return float(np.log(p.size) - entropy)   # 0 = 完全均匀，越大越集中
+    return float(np.log(p.size) - entropy)  # 0 = 完全均匀，越大越集中

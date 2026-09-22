@@ -39,12 +39,12 @@ class SpectroConfig:
     n_fft: int = 2048
     hop_length: int = 512
     window: str = "hann"
-    n_mels: int = 128            # 仅 kind="mel"
+    n_mels: int = 128  # 仅 kind="mel"
     fmin: float = 20.0
-    fmax: float | None = None    # None → sr/2
-    bins_per_octave: int = 36    # 仅 kind="cqt"，36 = 每半音 3 个频点
-    n_octaves: int = 7           # 仅 kind="cqt"
-    top_db: float = 80.0         # dB 动态范围裁剪
+    fmax: float | None = None  # None → sr/2
+    bins_per_octave: int = 36  # 仅 kind="cqt"，36 = 每半音 3 个频点
+    n_octaves: int = 7  # 仅 kind="cqt"
+    top_db: float = 80.0  # dB 动态范围裁剪
 
     def time_resolution(self, sr: int) -> float:
         """单帧覆盖的时间跨度（秒）。"""
@@ -56,18 +56,20 @@ class SpectroConfig:
 
     def describe(self, sr: int) -> str:
         """一行人类可读的参数说明，印在海报角落。"""
-        return (f"{self.kind.upper()} · n_fft={self.n_fft} · hop={self.hop_length} "
-                f"· {self.window} · Δt={self.time_resolution(sr) * 1000:.0f}ms "
-                f"· Δf={self.freq_resolution(sr):.1f}Hz")
+        return (
+            f"{self.kind.upper()} · n_fft={self.n_fft} · hop={self.hop_length} "
+            f"· {self.window} · Δt={self.time_resolution(sr) * 1000:.0f}ms "
+            f"· Δf={self.freq_resolution(sr):.1f}Hz"
+        )
 
 
 @dataclass(frozen=True)
 class Spectrogram:
     """时频矩阵及其坐标轴。"""
 
-    S_db: np.ndarray             # (n_freq, n_frames)，单位 dB
-    times: np.ndarray            # 每帧中心时刻（秒）
-    freqs: np.ndarray            # 每行对应的频率（Hz）
+    S_db: np.ndarray  # (n_freq, n_frames)，单位 dB
+    times: np.ndarray  # 每帧中心时刻（秒）
+    freqs: np.ndarray  # 每行对应的频率（Hz）
     sr: int
     config: SpectroConfig = field(repr=False)
 
@@ -82,8 +84,9 @@ def compute(audio: Audio, config: SpectroConfig | None = None) -> Spectrogram:
     fmax = cfg.fmax if cfg.fmax is not None else audio.sr / 2
 
     if cfg.kind == "stft":
-        D = librosa.stft(audio.y, n_fft=cfg.n_fft,
-                         hop_length=cfg.hop_length, window=cfg.window)
+        D = librosa.stft(
+            audio.y, n_fft=cfg.n_fft, hop_length=cfg.hop_length, window=cfg.window
+        )
         S_power = np.abs(D) ** 2
         freqs = librosa.fft_frequencies(sr=audio.sr, n_fft=cfg.n_fft)
 
@@ -91,9 +94,14 @@ def compute(audio: Audio, config: SpectroConfig | None = None) -> Spectrogram:
         # 梅尔刻度近似人耳感知：低频密、高频疏。
         # 线性频率轴下，80% 的像素会浪费在 5kHz 以上几乎没有内容的区域。
         S_power = librosa.feature.melspectrogram(
-            y=audio.y, sr=audio.sr, n_fft=cfg.n_fft,
-            hop_length=cfg.hop_length, window=cfg.window,
-            n_mels=cfg.n_mels, fmin=cfg.fmin, fmax=fmax,
+            y=audio.y,
+            sr=audio.sr,
+            n_fft=cfg.n_fft,
+            hop_length=cfg.hop_length,
+            window=cfg.window,
+            n_mels=cfg.n_mels,
+            fmin=cfg.fmin,
+            fmax=fmax,
         )
         freqs = librosa.mel_frequencies(n_mels=cfg.n_mels, fmin=cfg.fmin, fmax=fmax)
 
@@ -101,9 +109,14 @@ def compute(audio: Audio, config: SpectroConfig | None = None) -> Spectrogram:
         # 常数 Q 变换：每个倍频程的频点数固定，正好对应十二平均律。
         # 画和弦、旋律线比 STFT 清楚得多，代价是慢。
         n_bins = cfg.bins_per_octave * cfg.n_octaves
-        C = librosa.cqt(audio.y, sr=audio.sr, hop_length=cfg.hop_length,
-                        fmin=max(cfg.fmin, librosa.note_to_hz("C1")),
-                        n_bins=n_bins, bins_per_octave=cfg.bins_per_octave)
+        C = librosa.cqt(
+            audio.y,
+            sr=audio.sr,
+            hop_length=cfg.hop_length,
+            fmin=max(cfg.fmin, librosa.note_to_hz("C1")),
+            n_bins=n_bins,
+            bins_per_octave=cfg.bins_per_octave,
+        )
         S_power = np.abs(C) ** 2
         freqs = librosa.cqt_frequencies(
             n_bins=n_bins,
@@ -115,11 +128,11 @@ def compute(audio: Audio, config: SpectroConfig | None = None) -> Spectrogram:
 
     # 功率动态范围能跨 6 个数量级，不转 dB 的话整张图是一片黑加几个亮点。
     S_db = librosa.power_to_db(S_power, ref=np.max, top_db=cfg.top_db)
-    times = librosa.frames_to_time(np.arange(S_db.shape[1]),
-                                   sr=audio.sr, hop_length=cfg.hop_length)
+    times = librosa.frames_to_time(
+        np.arange(S_db.shape[1]), sr=audio.sr, hop_length=cfg.hop_length
+    )
 
-    return Spectrogram(S_db=S_db, times=times, freqs=freqs,
-                       sr=audio.sr, config=cfg)
+    return Spectrogram(S_db=S_db, times=times, freqs=freqs, sr=audio.sr, config=cfg)
 
 
 def frame_spectrum(spec: Spectrogram, t: float) -> np.ndarray:

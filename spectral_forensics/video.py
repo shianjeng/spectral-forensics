@@ -32,8 +32,14 @@ def _resample_rows(column: np.ndarray, n_out: int) -> np.ndarray:
     return np.interp(dst, src, column)
 
 
-def _draw_bars(levels: np.ndarray, width: int, height: int,
-               lut: np.ndarray, bg: np.ndarray, gap: int = 2) -> np.ndarray:
+def _draw_bars(
+    levels: np.ndarray,
+    width: int,
+    height: int,
+    lut: np.ndarray,
+    bg: np.ndarray,
+    gap: int = 2,
+) -> np.ndarray:
     """纯 numpy 画一帧柱状频谱。levels 已归一化到 [0, 1]。"""
     frame = np.broadcast_to(bg, (height, width, 3)).copy()
     n = len(levels)
@@ -49,7 +55,7 @@ def _draw_bars(levels: np.ndarray, width: int, height: int,
             continue
         # 柱体内部按高度取渐变色，顶部最亮
         ramp = (np.linspace(0.0, lv, h) * (len(lut) - 1)).astype(np.int32)
-        frame[height - h:height, x0:x1] = lut[ramp][:, None, :][::-1]
+        frame[height - h : height, x0:x1] = lut[ramp][:, None, :][::-1]
 
     return frame
 
@@ -72,13 +78,17 @@ def render_video(
     0.6 左右接近常见播放器的视觉手感）。
     """
     if not ffmpeg_available():
-        raise RuntimeError("未找到 ffmpeg，请先安装：apt install ffmpeg / brew install ffmpeg")
+        raise RuntimeError(
+            "未找到 ffmpeg，请先安装：apt install ffmpeg / brew install ffmpeg"
+        )
 
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
 
     cmap = get_cmap(palette)
-    lut = (np.asarray([cmap(x)[:3] for x in np.linspace(0, 1, 256)]) * 255).astype(np.uint8)
+    lut = (np.asarray([cmap(x)[:3] for x in np.linspace(0, 1, 256)]) * 255).astype(
+        np.uint8
+    )
     bg = lut[0].astype(np.uint8)
 
     # dB → [0, 1]
@@ -89,13 +99,36 @@ def render_video(
     state = np.zeros(n_bars)
 
     cmd = [
-        "ffmpeg", "-y", "-loglevel", "error",
-        "-f", "rawvideo", "-pix_fmt", "rgb24",
-        "-s", f"{width}x{height}", "-r", str(fps), "-i", "pipe:0",
-        "-i", str(audio.path),
-        "-c:v", "libx264", "-preset", "medium", "-crf", str(crf),
-        "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "192k",
-        "-shortest", str(out_path),
+        "ffmpeg",
+        "-y",
+        "-loglevel",
+        "error",
+        "-f",
+        "rawvideo",
+        "-pix_fmt",
+        "rgb24",
+        "-s",
+        f"{width}x{height}",
+        "-r",
+        str(fps),
+        "-i",
+        "pipe:0",
+        "-i",
+        str(audio.path),
+        "-c:v",
+        "libx264",
+        "-preset",
+        "medium",
+        "-crf",
+        str(crf),
+        "-pix_fmt",
+        "yuv420p",
+        "-c:a",
+        "aac",
+        "-b:a",
+        "192k",
+        "-shortest",
+        str(out_path),
     ]
 
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stderr=subprocess.PIPE)

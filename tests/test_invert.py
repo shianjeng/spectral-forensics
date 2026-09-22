@@ -25,9 +25,11 @@ CFG = SpectroConfig(kind="stft", n_fft=2048, hop_length=512)
 def mixture(dur: float = 3.0) -> Audio:
     """三个正弦的叠加，分别落在低、中、高频，方便检验频段操作。"""
     t = np.linspace(0, dur, int(SR * dur), endpoint=False)
-    y = (np.sin(2 * np.pi * 300 * t)
-         + np.sin(2 * np.pi * 3000 * t)
-         + np.sin(2 * np.pi * 7000 * t)) / 3.0
+    y = (
+        np.sin(2 * np.pi * 300 * t)
+        + np.sin(2 * np.pi * 3000 * t)
+        + np.sin(2 * np.pi * 7000 * t)
+    ) / 3.0
     return Audio(y=y.astype(np.float32), sr=SR, path=Path("mix.wav"))
 
 
@@ -44,29 +46,27 @@ def test_identity_roundtrip_is_numerically_exact():
     y = apply_mask(spec, np.ones_like(spec.magnitude), length=len(audio.y))
 
     rel = np.linalg.norm(y - audio.y) / np.linalg.norm(audio.y)
-    assert rel < 1e-6           # 实测约 1e-8，即 −158 dB
+    assert rel < 1e-6  # 实测约 1e-8，即 −158 dB
 
 
 def test_band_reject_removes_only_the_target_band():
     audio = mixture()
     spec = analyze(audio, CFG)
-    y = apply_mask(spec, band_mask(spec, 2500, 3500, keep=False),
-                   length=len(audio.y))
+    y = apply_mask(spec, band_mask(spec, 2500, 3500, keep=False), length=len(audio.y))
 
     removed = band_energy(y, 2900, 3100) / band_energy(audio.y, 2900, 3100)
     kept_lo = band_energy(y, 250, 350) / band_energy(audio.y, 250, 350)
     kept_hi = band_energy(y, 6900, 7100) / band_energy(audio.y, 6900, 7100)
 
-    assert removed < 1e-3       # 目标频段掉 30 dB 以上
-    assert kept_lo > 0.95       # 其余频段基本不动
+    assert removed < 1e-3  # 目标频段掉 30 dB 以上
+    assert kept_lo > 0.95  # 其余频段基本不动
     assert kept_hi > 0.95
 
 
 def test_band_keep_is_the_complement():
     audio = mixture()
     spec = analyze(audio, CFG)
-    y = apply_mask(spec, band_mask(spec, 2500, 3500, keep=True),
-                   length=len(audio.y))
+    y = apply_mask(spec, band_mask(spec, 2500, 3500, keep=True), length=len(audio.y))
 
     assert band_energy(y, 2900, 3100) / band_energy(audio.y, 2900, 3100) > 0.95
     assert band_energy(y, 250, 350) / band_energy(audio.y, 250, 350) < 1e-3
@@ -98,10 +98,11 @@ def test_denoise_improves_snr_on_a_noisy_signal():
     def snr(x):
         n = min(len(audio.y), len(x))
         err = x[:n] - audio.y[:n]
-        return 10 * np.log10((audio.y[:n] ** 2).sum() / ((err ** 2).sum() + 1e-20))
+        return 10 * np.log10((audio.y[:n] ** 2).sum() / ((err**2).sum() + 1e-20))
 
-    spec = analyze(Audio(y=noisy.astype(np.float32), sr=SR,
-                         path=Path("noisy.wav")), CFG)
+    spec = analyze(
+        Audio(y=noisy.astype(np.float32), sr=SR, path=Path("noisy.wav")), CFG
+    )
     cleaned = apply_mask(spec, spectral_gate(spec), length=len(audio.y))
 
     assert snr(cleaned) > snr(noisy)
@@ -110,11 +111,12 @@ def test_denoise_improves_snr_on_a_noisy_signal():
 def test_griffin_lim_converges_with_more_iterations():
     """迭代越多，谱收敛误差应当单调下降（或至少不上升）。"""
     audio = mixture(dur=1.5)
-    target = np.abs(librosa.stft(audio.y, n_fft=CFG.n_fft,
-                                 hop_length=CFG.hop_length))
+    target = np.abs(librosa.stft(audio.y, n_fft=CFG.n_fft, hop_length=CFG.hop_length))
 
-    errs = [spectral_convergence(target, synthesize(target, SR, CFG, n_iter=n), CFG)
-            for n in (1, 8, 48)]
+    errs = [
+        spectral_convergence(target, synthesize(target, SR, CFG, n_iter=n), CFG)
+        for n in (1, 8, 48)
+    ]
     assert errs[0] > errs[1] > errs[2]
     assert errs[-1] < 0.25
 
@@ -124,11 +126,11 @@ def test_image_to_magnitude_stays_inside_the_requested_band(tmp_path):
     from PIL import Image
 
     img = tmp_path / "grad.png"
-    Image.fromarray((np.linspace(0, 255, 64 * 64)
-                     .reshape(64, 64)).astype(np.uint8)).save(img)
+    Image.fromarray(
+        (np.linspace(0, 255, 64 * 64).reshape(64, 64)).astype(np.uint8)
+    ).save(img)
 
-    mag = image_to_magnitude(img, SR, CFG, n_frames=100,
-                             fmin=500.0, fmax=4000.0)
+    mag = image_to_magnitude(img, SR, CFG, n_frames=100, fmin=500.0, fmax=4000.0)
     freqs = librosa.fft_frequencies(sr=SR, n_fft=CFG.n_fft)
     outside = mag[(freqs < 500.0) | (freqs > 4000.0)]
     assert np.allclose(outside, 0.0)

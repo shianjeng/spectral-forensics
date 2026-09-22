@@ -37,11 +37,12 @@ def chirp(f0: float, f1: float, dur: float = 3.0, sr: int = 22050) -> Audio:
 
 # ------------------------------------------------------------------ audit
 
+
 def test_full_band_noise_has_no_cutoff():
     freqs, db = long_term_spectrum(noise(), SR)
     f_c, _ = find_cutoff(freqs, db)
     assert f_c is not None
-    assert f_c > 0.95 * (SR / 2)      # 一路延伸到奈奎斯特
+    assert f_c > 0.95 * (SR / 2)  # 一路延伸到奈奎斯特
 
 
 @pytest.mark.parametrize("cutoff", [12000.0, 16000.0, 19000.0])
@@ -51,7 +52,7 @@ def test_brickwall_cutoff_is_recovered(cutoff):
     f_c, steep = find_cutoff(freqs, db)
     assert f_c is not None
     assert abs(f_c - cutoff) < 500.0
-    assert steep is not None and steep > 20.0   # 砖墙必然陡
+    assert steep is not None and steep > 20.0  # 砖墙必然陡
 
 
 def test_natural_rolloff_is_not_flagged_as_brickwall():
@@ -59,7 +60,7 @@ def test_natural_rolloff_is_not_flagged_as_brickwall():
     y = noise()
     Y = np.fft.rfft(y)
     f = np.fft.rfftfreq(len(y), d=1 / SR)
-    Y *= 1.0 / (1.0 + (f / 8000.0))        # 6 dB/oct 缓降
+    Y *= 1.0 / (1.0 + (f / 8000.0))  # 6 dB/oct 缓降
     y_soft = np.fft.irfft(Y, n=len(y)).astype(np.float32)
 
     freqs, db = long_term_spectrum(y_soft, SR)
@@ -70,10 +71,11 @@ def test_natural_rolloff_is_not_flagged_as_brickwall():
 def test_cutoff_to_bitrate_mapping():
     assert "128" in guess_source(16.0)
     assert "64" in guess_source(11.0)
-    assert guess_source(3.0) == "未知有损编码"   # 离任何档位都太远
+    assert guess_source(3.0) == "未知有损编码"  # 离任何档位都太远
 
 
 # --------------------------------------------------------------- reassign
+
 
 def test_reassignment_sharpens_a_chirp():
     """同窗、同网格下，重分配后的能量必须更集中。"""
@@ -95,17 +97,21 @@ def test_reassigned_tone_is_narrower_than_a_fft_bin():
     f0 = 1000.0
     sr = 22050
     t = np.linspace(0, 2.0, int(sr * 2.0), endpoint=False)
-    audio = Audio(y=np.sin(2 * np.pi * f0 * t).astype(np.float32),
-                  sr=sr, path=Path("tone.wav"))
+    audio = Audio(
+        y=np.sin(2 * np.pi * f0 * t).astype(np.float32), sr=sr, path=Path("tone.wav")
+    )
     cfg = SpectroConfig(kind="stft", n_fft=2048, hop_length=256)
 
     pts = reassign(audio, cfg, mag_top_db=40.0)
     near = pts.freqs[np.abs(pts.freqs - f0) < 200.0]
     assert near.size > 100
 
-    spread = float(np.average(np.abs(near - f0),
-                              weights=pts.weights[np.abs(pts.freqs - f0) < 200.0]))
-    assert spread < cfg.freq_resolution(sr)      # < 10.8 Hz
+    spread = float(
+        np.average(
+            np.abs(near - f0), weights=pts.weights[np.abs(pts.freqs - f0) < 200.0]
+        )
+    )
+    assert spread < cfg.freq_resolution(sr)  # < 10.8 Hz
 
 
 def test_reassign_keeps_only_significant_points():

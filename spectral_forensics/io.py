@@ -15,8 +15,8 @@ from numpy.typing import NDArray
 class Audio:
     """一段已解码的单声道音频。"""
 
-    y: np.ndarray          # 波形，float32，范围约 [-1, 1]
-    sr: int                # 采样率 (Hz)
+    y: np.ndarray  # 波形，float32，范围约 [-1, 1]
+    sr: int  # 采样率 (Hz)
     path: Path
 
     @property
@@ -62,8 +62,9 @@ def load_raw(
     """稳健解码：先试 librosa，失败再退到 ffmpeg。返回 (波形, 采样率)。"""
     path = Path(path)
     try:
-        y, sr_actual = librosa.load(path, sr=sr, mono=mono,
-                                    offset=offset, duration=duration)
+        y, sr_actual = librosa.load(
+            path, sr=sr, mono=mono, offset=offset, duration=duration
+        )
         if y.size:
             return y.astype(np.float32), int(sr_actual)
     except (RuntimeError, ValueError, OSError):
@@ -72,8 +73,12 @@ def load_raw(
     return _decode_via_ffmpeg(path, sr, mono, offset, duration)
 
 
-def load(path: str | Path, sr: int = 22050, offset: float = 0.0,
-         duration: float | None = None) -> Audio:
+def load(
+    path: str | Path,
+    sr: int = 22050,
+    offset: float = 0.0,
+    duration: float | None = None,
+) -> Audio:
     """读入音频文件。
 
     sr=22050 是默认选择：奈奎斯特频率 11025 Hz，已经覆盖绝大部分乐音内容
@@ -84,8 +89,7 @@ def load(path: str | Path, sr: int = 22050, offset: float = 0.0,
     if not path.exists():
         raise FileNotFoundError(f"找不到音频文件: {path}")
 
-    y, sr_actual = load_raw(path, sr=sr, mono=True,
-                            offset=offset, duration=duration)
+    y, sr_actual = load_raw(path, sr=sr, mono=True, offset=offset, duration=duration)
     if y.size == 0:
         raise ValueError(f"音频为空（检查 offset/duration 是否超出时长）: {path}")
 

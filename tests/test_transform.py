@@ -11,8 +11,9 @@ from spectral_forensics.transform import SpectroConfig, compute, frame_spectrum
 
 def sine(freq: float, sr: int = 22050, dur: float = 2.0) -> Audio:
     t = np.linspace(0, dur, int(sr * dur), endpoint=False)
-    return Audio(y=np.sin(2 * np.pi * freq * t).astype(np.float32),
-                 sr=sr, path=Path("sine.wav"))
+    return Audio(
+        y=np.sin(2 * np.pi * freq * t).astype(np.float32), sr=sr, path=Path("sine.wav")
+    )
 
 
 def test_uncertainty_product_is_unity():
@@ -37,8 +38,9 @@ def test_stft_peak_lands_on_input_frequency():
 
 def test_finer_n_fft_gives_finer_frequency_resolution():
     sr = 22050
-    assert (SpectroConfig(n_fft=8192).freq_resolution(sr)
-            < SpectroConfig(n_fft=512).freq_resolution(sr))
+    assert SpectroConfig(n_fft=8192).freq_resolution(sr) < SpectroConfig(
+        n_fft=512
+    ).freq_resolution(sr)
 
 
 @pytest.mark.parametrize("kind", ["stft", "mel", "cqt"])

@@ -24,8 +24,9 @@ from spectral_forensics.audit import find_cutoff, long_term_spectrum
 SR = 44100
 PAGE = Path(__file__).resolve().parent.parent / "docs" / "index.html"
 
-pytestmark = pytest.mark.skipif(shutil.which("node") is None,
-                                reason="node not installed")
+pytestmark = pytest.mark.skipif(
+    shutil.which("node") is None, reason="node not installed"
+)
 
 
 def brickwall(y: np.ndarray, cutoff_hz: float | None) -> np.ndarray:
@@ -64,21 +65,29 @@ def test_js_and_python_agree_on_the_cutoff(cutoff):
         tmp = Path(tmp)
         (tmp / "core.mjs").write_text(
             extract_js() + "\nexport {longTermSpectrum, findCutoff};\n",
-            encoding="utf-8")
+            encoding="utf-8",
+        )
         (tmp / "sig.f32").write_bytes(y.tobytes())
-        (tmp / "run.mjs").write_text(f"""
+        (tmp / "run.mjs").write_text(
+            f"""
 import fs from "fs";
-import {{ longTermSpectrum, findCutoff }} from "{tmp / 'core.mjs'}";
-const b = fs.readFileSync("{tmp / 'sig.f32'}");
+import {{ longTermSpectrum, findCutoff }} from "{tmp / "core.mjs"}";
+const b = fs.readFileSync("{tmp / "sig.f32"}");
 const y = new Float32Array(b.buffer, b.byteOffset, b.length / 4);
 const {{ freqs, db }} = longTermSpectrum(y, {SR});
 const c = findCutoff(freqs, db);
 console.log(JSON.stringify({{ cutoffHz: c.cutoffHz }}));
-""", encoding="utf-8")
+""",
+            encoding="utf-8",
+        )
 
-        out = subprocess.run(["node", str(tmp / "run.mjs")],
-                             capture_output=True, text=True,
-                             timeout=180, check=False)
+        out = subprocess.run(
+            ["node", str(tmp / "run.mjs")],
+            capture_output=True,
+            text=True,
+            timeout=180,
+            check=False,
+        )
         assert out.returncode == 0, out.stderr
         js_fc = json.loads(out.stdout)["cutoffHz"]
 
