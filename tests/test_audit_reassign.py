@@ -120,3 +120,50 @@ def test_reassign_keeps_only_significant_points():
     loose = reassign(audio, cfg, mag_top_db=80.0)
     tight = reassign(audio, cfg, mag_top_db=30.0)
     assert len(tight) < len(loose)
+
+
+# ------------------------------------------------- 20 kHz 模糊带
+
+
+def lowpassed_file(tmp_path: Path, cutoff_hz: float) -> Path:
+    """造一个"无损但做过低通"的文件——母带处理或 ADC 抗混叠的样子。"""
+    import soundfile as sf
+
+    rng = np.random.default_rng(3)
+    y = rng.standard_normal(SR * 3).astype(np.float32) * 0.2
+    Y = np.fft.rfft(y)
+    f = np.fft.rfftfreq(len(y), d=1 / SR)
+    Y[f > cutoff_hz] = 0.0
+    out = tmp_path / f"lp_{int(cutoff_hz)}.flac"
+    sf.write(out, np.fft.irfft(Y, n=len(y)).astype(np.float32), SR)
+    return out
+
+
+@pytest.mark.parametrize("cutoff", [20000.0, 20500.0])
+def test_a_20khz_brick_wall_is_not_called_suspect(tmp_path, cutoff):
+    """20 kHz 附近的砖墙不能判成 suspect。
+
+    母带处理和一部分 ADC 抗混叠滤波器就切在这里，而 LAME 320 kbps 的截止
+    也落在同一位置——光看低通无法区分，所以只能到 likely。
+    """
+    from spectral_forensics.audit import audit_file
+
+    r = audit_file(lowpassed_file(tmp_path, cutoff))
+    assert r.verdict == "likely"
+
+
+@pytest.mark.parametrize("cutoff", [16000.0, 18000.0])
+def test_a_clearly_low_brick_wall_is_still_suspect(tmp_path, cutoff):
+    """模糊带的豁免不能把真转码一起放过。"""
+    from spectral_forensics.audit import audit_file
+
+    r = audit_file(lowpassed_file(tmp_path, cutoff))
+    assert r.verdict == "suspect"
+
+
+def test_a_near_nyquist_rolloff_stays_clean(tmp_path):
+    """21 kHz 的 ADC 抗混叠滤波是正常的，必须判 clean。"""
+    from spectral_forensics.audit import audit_file
+
+    r = audit_file(lowpassed_file(tmp_path, 21000.0))
+    assert r.verdict == "clean"

@@ -40,6 +40,14 @@ AUDIO_SUFFIXES = {
 
 LOSSLESS_SUFFIXES = {".flac", ".wav", ".aiff", ".aif", ".wv", ".ape", ".alac"}
 
+# 19.8–21.6 kHz 是一条无法靠低通本身分辨的模糊带。
+# 母带处理和一部分 ADC 抗混叠滤波器就切在这个范围，而 LAME 320 kbps
+# 的截止也恰好落在 20 kHz 附近——频域上两者几乎一模一样。
+# 落在这一带时不给"编码器常用档位"的加分，且在没有立体声佐证的情况下
+# 判定最高只到 likely，不升到 suspect。
+AMBIGUOUS_LO_KHZ = 19.8
+AMBIGUOUS_HI_KHZ = 21.6
+
 # 常见编码器的截止频率（kHz）→ 推测码率。
 # 数值取自 LAME / Fraunhofer AAC 的默认低通设置，实测会有 ±0.5kHz 浮动。
 CUTOFF_TABLE: list[tuple[float, str]] = [
@@ -287,8 +295,13 @@ def audit_file(
                 notes.append(f"截止处 1 kHz 内再跌 {steep:.0f} dB，呈砖墙特征")
             elif steep is not None:
                 notes.append(f"截止处跌落仅 {steep:.0f} dB，更像自然衰减")
-            # 落在编码器常用档位附近，额外加分
-            if min(abs(cutoff_khz - f) for f, _ in CUTOFF_TABLE) <= 0.6:
+            in_ambiguous = AMBIGUOUS_LO_KHZ <= cutoff_khz <= AMBIGUOUS_HI_KHZ
+            # 落在编码器常用档位附近，额外加分——但模糊带内不算，
+            # 因为那里"常用档位"和母带低通是同一个频率。
+            if (
+                not in_ambiguous
+                and min(abs(cutoff_khz - f) for f, _ in CUTOFF_TABLE) <= 0.6
+            ):
                 score += 0.15
         else:
             notes.append("频谱延伸到接近奈奎斯特频率，未见低通")
@@ -315,6 +328,20 @@ def audit_file(
         verdict = "likely"  # 只有低通，缺少砖墙或立体声佐证
     else:
         verdict = "clean"
+
+    # 模糊带封顶：这一带的砖墙可能来自母带处理而非编码器，
+    # 除非有强度立体声这类与低通无关的佐证，否则不下"可疑"的断语。
+    if (
+        verdict == "suspect"
+        and stereo_khz is None
+        and cutoff_khz is not None
+        and AMBIGUOUS_LO_KHZ <= cutoff_khz <= AMBIGUOUS_HI_KHZ
+    ):
+        verdict = "likely"
+        notes.append(
+            f"{AMBIGUOUS_LO_KHZ:.1f}–{AMBIGUOUS_HI_KHZ:.1f} kHz 的砖墙也可能来自"
+            "母带处理或 ADC 抗混叠滤波，缺少独立佐证，不升为可疑"
+        )
 
     if (
         info.sample_rate

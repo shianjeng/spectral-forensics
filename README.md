@@ -206,6 +206,36 @@ A single self-contained HTML file: every flagged track gets its own long-term
 spectrum with the detected cutoff marked, so the evidence travels with the
 verdict instead of scrolling out of a terminal.
 
+### The 20 kHz problem
+
+A steep rolloff is not proof of compression. Mastering chains and some ADC
+anti-aliasing filters lowpass the signal too, and one of the places they do it
+is around 20 kHz — which is also where LAME puts the cutoff at 320 kbps. In the
+frequency domain those two are the same picture.
+
+Measured on synthetic lossless files with a brick wall at various frequencies:
+
+| Lowpass | Verdict |
+|---|---|
+| 21.5 kHz | ✓ clean |
+| 21.0 kHz | ✓ clean |
+| 20.5 kHz | ? likely |
+| 20.0 kHz | ? likely |
+| 19.0 kHz | ⚠ suspect |
+| 16.0 kHz | ⚠ suspect |
+
+Two rules keep this honest. Anything within 1.2 kHz of Nyquist counts as full
+band, so an ADC filter at 21 kHz never scores at all. And between 19.8 and 21.6
+kHz the "lands on a known encoder cutoff" bonus is withheld and the verdict is
+capped at `likely` unless something independent of the lowpass — intensity
+stereo — corroborates it. The ground-truth table above is unchanged by these
+rules: every genuinely transcoded file is still caught.
+
+Credit for the question goes to a reader who pointed out that ADCs brickwall
+too. They were right that the reasoning needed stating; the specific case they
+raised (21 kHz) was already handled, and looking into it found the real gap at
+20 kHz.
+
 ### Known limitation
 
 Encoders that apply **no** hard lowpass — ffmpeg's native AAC at higher

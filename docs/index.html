@@ -227,6 +227,11 @@ function guessSource(khz){
    会在 22.05 kHz 露出一道假悬崖——那是源素材的奈奎斯特，不是编码器。 */
 const FULL_BAND_KHZ = 21.6;
 
+/* 19.8–21.6 kHz 是一条无法靠低通本身分辨的模糊带：母带处理和一部分 ADC
+   抗混叠滤波器就切在这里，而 LAME 320 kbps 的截止也落在 20 kHz 附近。
+   落在这一带时不给"编码器常用档位"的加分，且没有立体声佐证时判定封顶在 likely。 */
+const AMBIGUOUS_LO_KHZ = 19.8;
+
 function verdict(cut, stereoHz, isLossless){
   const notes=[]; let score=0;
   if(cut.cutoffHz!==null){
@@ -239,7 +244,8 @@ function verdict(cut, stereoHz, isLossless){
       } else if(cut.steepness!==null){
         notes.push(`Only ${cut.steepness.toFixed(0)} dB of further falloff above the cutoff — this looks like natural rolloff.`);
       }
-      if(Math.min(...CUTOFF_TABLE.map(([f])=>Math.abs(khz-f)))<=0.6){
+      const ambiguous = khz >= AMBIGUOUS_LO_KHZ;
+      if(!ambiguous && Math.min(...CUTOFF_TABLE.map(([f])=>Math.abs(khz-f)))<=0.6){
         score+=0.15;
         notes.push("The cutoff sits on a frequency encoders commonly use.");
       }
@@ -257,6 +263,14 @@ function verdict(cut, stereoHz, isLossless){
   else if(score>=0.70) tier="suspect";
   else if(score>=0.45) tier="likely";
   else tier="clean";
+
+  // 模糊带封顶：这一带的砖墙可能来自母带处理而非编码器。
+  const khz = cut.cutoffHz===null ? null : cut.cutoffHz/1000;
+  if(tier==="suspect" && stereoHz===null && khz!==null
+     && khz>=AMBIGUOUS_LO_KHZ && khz<FULL_BAND_KHZ){
+    tier="likely";
+    notes.push(`A brick wall between ${AMBIGUOUS_LO_KHZ} and ${FULL_BAND_KHZ} kHz can also come from mastering or an ADC's anti-aliasing filter. With no independent corroboration this is not called suspect.`);
+  }
   return {tier, score, notes};
 }
 
