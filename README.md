@@ -12,7 +12,7 @@ look at — and it says out loud what it cannot catch.
 **[→ Try it in your browser](https://shianjeng.github.io/spectral-forensics/)**
 — drop a file in, nothing is uploaded.
 
-![transcode cliffs](examples/audit_cliffs.png)
+![transcode cliffs](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/audit_cliffs.png)
 
 *One source, encoded at three bitrates, then converted back to FLAC. Below the
 cutoff the four curves are indistinguishable; above it, each encoder's brick
@@ -244,11 +244,11 @@ converges to a local solution, so a metallic quality is inherent, not a bug.
 spf sonify photo.jpg --preview roundtrip.png
 ```
 
-![source photo](examples/source_photo.png)
+![source photo](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/source_photo.png)
 
 *Input: an ordinary greyscale picture.*
 
-![photo round trip](examples/photo_roundtrip.png)
+![photo round trip](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/photo_roundtrip.png)
 
 *Output, round-tripped: the picture encoded as a magnitude spectrum,
 resynthesised into a 10-second wav, then re-analysed from the audio alone.
@@ -286,7 +286,7 @@ microscopy.
 spf reassign track.flac --hop 256 --side-by-side
 ```
 
-![reassigned vs standard](examples/reassign_compare.png)
+![reassigned vs standard](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/reassign_compare.png)
 
 *Same audio, same window, same grid. Top: conventional STFT. Bottom: after
 reassignment. The harmonics collapse to hairlines and the kick drum's pitch
@@ -305,7 +305,7 @@ Where it fails: reassignment relies on the phase derivative being
 meaningful, so overlapping partials and low-SNR regions scatter. Anything
 below `--mag-top-db` is discarded rather than plotted as noise.
 
-![reassigned poster](examples/poster_reassigned.png)
+![reassigned poster](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/poster_reassigned.png)
 
 ---
 
@@ -317,7 +317,7 @@ spf video   track.mp3 --size 1920x1080 --fps 30 --bars 128
 spf compare track.mp3 --n-ffts 512,2048,8192
 ```
 
-![window comparison](examples/compare_nfft.png)
+![window comparison](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/compare_nfft.png)
 
 Short windows resolve every drum hit and smear the chords; long windows pin
 the harmonics to a few Hz and smear every transient across 372 ms. Δt·Δf = 1
