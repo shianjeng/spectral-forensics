@@ -353,10 +353,13 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 55 passed
+pytest -q     # 58 passed
 ```
 
-CI runs the suite on Python 3.11 and 3.12 on every push.
+CI runs the suite on Python 3.11 through 3.14 on every push, and again
+every Monday. The weekly run exists because the dependencies carry no
+pinned versions: upstream drift should surface in CI before it surfaces
+in somebody's install.
 
 What the suite asserts, beyond "it doesn't crash": Δt·Δf = 1 across window
 lengths; a 1 kHz tone peaking within one FFT bin; reassignment measurably

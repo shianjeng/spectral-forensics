@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # 依赖未锁版本，每周一跑一次，好在用户之前先发现上游漂移。
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -36,7 +40,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@v4
