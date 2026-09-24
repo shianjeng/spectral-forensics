@@ -17,10 +17,13 @@ Nothing is uploaded.
 
 ![transcode cliffs](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/audit_cliffs.png)
 
-*One source, encoded at three bitrates, then converted back to FLAC. Below the
-cutoff the four curves are indistinguishable; above it, each encoder's brick
-wall stands where the detector says it does. Reproduce it yourself with
-`python examples/make_audit_figure.py`.*
+*Top: the same 12-second clip as a genuine FLAC and after a 128 kbps mp3
+round trip. Everything above 16.7 kHz is gone, and converting back to FLAC
+does not bring it back. Bottom: the clip encoded with LAME at 96, 128 and
+192 kbps, then decoded back to FLAC. Below each cutoff the curves cannot be
+told apart from the genuine one; above it, each encoder's brick wall stands
+where `spf audit` says it does. Rebuild it with
+`python examples/make_audit_figure.py` (needs ffmpeg with libmp3lame).*
 
 That detector is one of four things built on the same spectral machinery. The
 other three: editing sound in the frequency domain and inverting back to a
@@ -104,7 +107,11 @@ lengths. Each is decoded once, so switching back is instant, and **Clear**
 returns the page to zero. The long-term spectrum overlays the genuine FLAC as a
 green reference line. On the mp3 example the two curves coincide up to
 16.7 kHz and then only one of them carries on, which is the whole argument in
-one picture. Hover over it to read both levels at any frequency.
+one picture. Hover over it to read both levels at any frequency. Drag across
+it to zoom into a band, or drag a box to zoom both axes; double-click resets,
+and **Near the cutoff** jumps straight to the cliff. The level axis fits
+whatever is in view, so no curve is clipped, and the handle underneath
+resizes the plot.
 
 Every example has its own link:
 [`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3),
