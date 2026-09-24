@@ -1,5 +1,5 @@
 /*
- * 页面文字：英语 / 日语。两种语言的键必须完全相同（tests/test_web_parity.py 会检查），
+ * 页面文字：英语 / 中文 / 日语。各语言的键必须完全相同（tests/test_web_parity.py 会检查），
  * index.html 里的 data-i18n / data-i18n-html 也必须都能在这里找到。
  * 值是字符串，或接收数值、返回字符串的函数。data-i18n-html 的值会作为 HTML 插入，只放静态文本。
  */
@@ -18,6 +18,7 @@ const en = {
   "sample.genuine": "Genuine FLAC",
   "sample.mp3": "128 kbps mp3, back as FLAC",
   "sample.synth": "Sweep, tones & clicks",
+  "source.clear": "Clear",
 
   "status.decoding": name => `Decoding ${name} …`,
   "status.analysing": "Measuring the long-term spectrum …",
@@ -39,6 +40,10 @@ const en = {
   "stat.dur": "analysed",
   "stat.fullBand": "full band",
   "stat.none": "none",
+  "empty.badge": "No audio",
+  "empty.headline": "Drop a file above, or pick an example.",
+  "empty.spec": "No audio loaded",
+  "empty.chart": "The long-term spectrum appears here",
 
   "note.brickwall": n => `Level falls a further ${n.db.toFixed(0)} dB within 1 kHz above the cutoff — that is a brick wall, not a rolloff.`,
   "note.rolloff": n => `Only ${n.db.toFixed(0)} dB of further falloff above the cutoff — this looks like natural rolloff.`,
@@ -96,7 +101,7 @@ const en = {
   "foot.install": "Scan a whole library from the command line:",
   "foot.copy": "Copy",
   "foot.copied": "Copied",
-  "lang.switch": "日本語",
+  "lang.label": "Language",
 };
 
 const ja = {
@@ -111,6 +116,7 @@ const ja = {
   "sample.genuine": "本物の FLAC",
   "sample.mp3": "128 kbps mp3 → FLAC",
   "sample.synth": "スイープ・純音・クリック",
+  "source.clear": "クリア",
 
   "status.decoding": name => `${name} をデコード中 …`,
   "status.analysing": "長時間スペクトルを測定中 …",
@@ -132,6 +138,10 @@ const ja = {
   "stat.dur": "解析範囲",
   "stat.fullBand": "全帯域",
   "stat.none": "なし",
+  "empty.badge": "未読み込み",
+  "empty.headline": "上にファイルをドロップするか、サンプルを選んでください。",
+  "empty.spec": "音声が読み込まれていません",
+  "empty.chart": "ここに長時間スペクトルが表示されます",
 
   "note.brickwall": n => `カットオフから 1 kHz 上がるだけで、さらに ${n.db.toFixed(0)} dB 落ちています。自然な減衰ではなく「レンガの壁」です。`,
   "note.rolloff": n => `カットオフより上の減衰は ${n.db.toFixed(0)} dB だけで、自然な減衰に見えます。`,
@@ -189,9 +199,107 @@ const ja = {
   "foot.install": "ライブラリ全体をコマンドラインで一括スキャン：",
   "foot.copy": "コピー",
   "foot.copied": "コピーしました",
-  "lang.switch": "English",
+  "lang.label": "言語",
 };
 
-root.SPF_I18N = { en, ja };
+const zh = {
+  "meta.title": "真的是无损吗？— spectral-forensics",
+  "title": "真的是<em>无损</em>吗？",
+  "lede": "拖入一个 FLAC、WAV 或 ALAC 文件。只要它曾经是 mp3，编码器就会在频谱上留下一道“悬崖”——转回无损格式之后，这道悬崖依然在。",
+  "privacy": "所有处理都在你的浏览器里完成，文件不会上传到任何地方。",
+  "drop.title": "把音频文件拖到这里",
+  "drop.sub": "或点击选择 — flac、wav、m4a、mp3、ogg",
+  "drop.cta": "选择文件",
+  "sources.label": "示例",
+  "sample.genuine": "真正的 FLAC",
+  "sample.mp3": "128 kbps mp3 转回 FLAC",
+  "sample.synth": "扫频、纯音与脉冲",
+  "source.clear": "清除",
+
+  "status.decoding": name => `正在解码 ${name} …`,
+  "status.analysing": "正在测量长时频谱 …",
+  "status.decodeFail": "浏览器无法解码这个文件。FLAC、WAV、M4A 通常可以，有些格式不行。",
+  "status.tooShort": "片段太短，无法分析。",
+  "status.sampleFail": "无法载入示例。如果你是直接从本地磁盘打开的这个页面，请改用 HTTP 提供 docs 文件夹。",
+
+  "tier.clean": "✓ 干净",
+  "tier.likely": "? 存疑",
+  "tier.suspect": "⚠ 可疑",
+  "tier.lossy": "· 有损文件",
+  "headline.clean": "没有发现有损编码器的痕迹。",
+  "headline.likely": "有低通，但没有其他证据佐证。",
+  "headline.suspect": "看起来经过了有损编码器。",
+  "headline.lossy": "这本来就是有损文件——下面是它的频谱实际撑得起的范围。",
+  "stat.cutoff": "截止频率",
+  "stat.steep": "其上 1 kHz 内的跌落",
+  "stat.stereo": "侧信号消失",
+  "stat.dur": "分析时长",
+  "stat.fullBand": "全频带",
+  "stat.none": "无",
+  "empty.badge": "尚未载入",
+  "empty.headline": "把文件拖到上方，或者选一个示例。",
+  "empty.spec": "尚未载入音频",
+  "empty.chart": "长时频谱会显示在这里",
+
+  "note.brickwall": n => `截止频率往上 1 kHz 之内，电平又跌了 ${n.db.toFixed(0)} dB——这是砖墙，不是自然滚降。`,
+  "note.rolloff": n => `截止频率以上只再跌了 ${n.db.toFixed(0)} dB——看起来是自然滚降。`,
+  "note.commonCutoff": "截止频率正好落在编码器常用的位置。",
+  "note.fullBand": "能量一直延伸到分析频带的顶端——没有发现低通。",
+  "note.stereoCollapse": n => `${n.khz.toFixed(1)} kHz 以上侧信号消失——这是强度立体声的特征。`,
+  "note.ambiguousBand": n => `${n.lo}–${n.hi} kHz 之间的砖墙也可能来自母带处理或 ADC 的抗混叠滤波。没有其他证据佐证，所以不判为可疑。`,
+  "note.consistent": src => `截止在这个位置，与 ${src} 相符。`,
+  "note.unknownEncoder": "某种未知的有损编码器",
+  "note.lossyName": "从文件名看，这本来就是有损格式，有截止很正常——只有远低于标称码率时才值得注意。",
+  "note.decoded": (khz, s) => `浏览器以 ${khz} kHz 解码，分析了开头 ${s} 秒。`,
+  "note.mp3Sample": "示例：把真正的片段用 LAME 以 128 kbps 编码的结果。浏览器解码出的采样与 mp3→FLAC 转换后的内容完全一样，所以按那个 FLAC 来判定。",
+  "note.genuineSample": "示例：12 秒合成音乐，直接写成 16-bit FLAC，从没经过有损编码器。",
+
+  "spec.title": "时频图",
+  "spec.mode": "方法",
+  "spec.stft": "STFT",
+  "spec.reassigned": "重分配",
+  "spec.window": "窗长",
+  "spec.axis": "频率轴",
+  "spec.log": "对数",
+  "spec.linear": "线性",
+  "spec.range": "动态范围",
+  "spec.palette": "配色",
+  "spec.cutoff": "标出截止频率",
+  "spec.play": "播放",
+  "spec.pause": "暂停",
+  "spec.png": "保存 PNG",
+  "spec.res": (ms, hz) => `窗长 ${ms} ms · 每个频点 ${hz} Hz`,
+  "spec.computing": p => `计算中 … ${p}%`,
+  "spec.hint": "悬停可读出时间、频率和电平。点击从该处开始播放，空格键播放／暂停。",
+  "spec.cutoffLabel": khz => `截止 ${khz} kHz`,
+  "spec.time": "时间 (s)",
+  "spec.synth": "合成测试信号：一段对数扫频、一个带谐波的定常音、一个颤音，以及每 0.75 秒一次的脉冲。这个信号不做判定，用来看窗长和重分配会带来什么变化。先对比 STFT 的 512 和 8192，再切到重分配。",
+
+  "chart.title": "长时频谱",
+  "chart.caption": "95 百分位电平，以 200–4000 Hz 的峰值为基准",
+  "chart.ref": "叠加真正的 FLAC",
+  "chart.refLabel": "参考：真正的 FLAC",
+  "chart.refRead": "参考",
+  "chart.hint": "悬停可读出任意频率的电平。",
+
+  "how.title": "判定原理",
+  "how.cutoff": "<b>截止频率</b> — 仍然带有真实能量的最高频率，取自 95 百分位的长时频谱。用百分位而不用平均值，是因为安静的段落会把平均值拖进底噪。",
+  "how.steep": "<b>陡峭度</b> — 从截止频率往上 1 kHz 之内，电平还会再跌多少。编码器的砖墙会跌 20 dB 以上，自然滚降不会。",
+  "how.stereo": "<b>强度立体声</b> — 有损编码器会在高频把左右声道合并成“单声道加声像权重”，所以侧信号 (L−R)/2 会在某个频率以上消失。这条线索和低通无关。",
+  "how.caveat": "<b>干净</b>的意思是“没有低通的证据”，并不证明来源。不做硬低通的编码器——较高码率下 ffmpeg 自带的 AAC、Opus——都能通过这项检测。另外，浏览器解码时会重采样，所以延伸到 21.6&nbsp;kHz 以上的一律视为全频带。",
+
+  "read.title": "怎么看时频图",
+  "read.stft": "<b>STFT</b> 把音频切成相互重叠的窗，逐个做傅里叶变换。长窗的频率分得细，但事件在时间上会被抹开；短窗正好相反。没有哪个窗长能两头兼顾。",
+  "read.reassigned": "<b>重分配</b>保持窗长不变，把每个格子的能量挪到它真正所在的位置：由相位变化率求出的瞬时频率，以及由时间加权窗求出的群延迟。纯音会收拢成线，脉冲会收拢成点。它和 <code>spf reassign</code> 的计算完全相同，测试会逐点与 librosa 比对。",
+  "read.cliff": "mp3 的低通在整首曲子上表现为一块漆黑、完全平直的“天花板”。把频率轴切到<b>线性</b>（对数轴会把最高的八度挤扁），再在前两个示例之间切换。长时频谱上一直叠着一条绿色的真正 FLAC 参考线，不用切换也能看出最高那个八度不见了。",
+
+  "footer": "判定逻辑与 <a href=\"https://github.com/shianjeng/spectral-forensics\">spectral-forensics</a> 的 <code>spf audit</code> 相同，移植到 JavaScript 后用同样的信号与 Python 实现逐一比对。命令行版可以批量扫描整个音乐库、给出推断码率，还能渲染海报和视频。",
+  "foot.install": "用命令行批量扫描整个音乐库：",
+  "foot.copy": "复制",
+  "foot.copied": "已复制",
+  "lang.label": "语言",
+};
+
+root.SPF_I18N = { en, zh, ja };
 if (typeof module !== "undefined" && module.exports) module.exports = root.SPF_I18N;
 })(globalThis);

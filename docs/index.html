@@ -37,6 +37,11 @@
     --r:16px;
     --lift:0 1px 0 rgba(255,255,255,.035) inset, 0 24px 48px -32px rgba(0,0,0,.8);
   }
+  /* 中文页面：汉字用简体中文字形，而不是日文字体里的 */
+  :root:lang(zh){
+    --serif:"Instrument Serif","Songti SC","STSong","Noto Serif SC","Source Han Serif SC",Georgia,serif;
+    --sans:"Geist",ui-sans-serif,-apple-system,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",Roboto,sans-serif;
+  }
   *,*::before,*::after{box-sizing:border-box}
   [hidden]{display:none!important}
   html{-webkit-text-size-adjust:100%}
@@ -51,6 +56,8 @@
     padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
   }
   ::selection{background:rgba(242,129,60,.35)}
+  h1,h2,.headline{text-wrap:balance}
+  p,li{text-wrap:pretty}
   a{color:inherit}
   button{font:inherit; color:inherit; cursor:pointer}
   :focus-visible{outline:2px solid var(--ember); outline-offset:2px; border-radius:6px}
@@ -66,18 +73,22 @@
   .nav a,.lang{display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--fg-2); text-decoration:none;
                padding:6px 11px; border-radius:9px; border:1px solid transparent; background:none; transition:color .15s, background .15s, border-color .15s}
   .nav a:hover,.lang:hover{color:var(--fg); background:var(--surface-2)}
-  .lang{border-color:var(--hair-2); margin-left:6px}
+  .lang{position:relative; border-color:var(--hair-2); margin-left:6px; cursor:pointer}
+  .lang:focus-within{outline:2px solid var(--ember); outline-offset:2px}
+  .lang select{appearance:none; -webkit-appearance:none; background:none; border:0; color:inherit; font:inherit; padding:0 16px 0 0; margin:0; cursor:pointer; outline:none}
+  .lang select option{background:#11141d; color:#eef0f6}
+  .lang .chev{position:absolute; right:10px; pointer-events:none; opacity:.7}
 
   /* ---------- hero ---------- */
   .hero{padding:52px 0 34px}
   h1{font:400 clamp(44px,6.6vw,70px)/1 var(--serif); letter-spacing:-.02em; margin:0 0 20px}
   h1 em{font-style:italic; padding-right:.06em; color:var(--ember);
         background:linear-gradient(95deg,#f2813c 10%,#ffc98f 90%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
-  :lang(ja) h1{font-size:clamp(34px,5.2vw,54px); line-height:1.2; letter-spacing:.01em}
-  :lang(ja) h1 em{font-style:normal}
+  :is(:lang(ja),:lang(zh)) h1{font-size:clamp(34px,5.2vw,54px); line-height:1.2; letter-spacing:.01em}
+  :is(:lang(ja),:lang(zh)) h1 em{font-style:normal}
   .lede{font-size:17.5px; line-height:1.6; color:var(--fg-2); max-width:60ch; margin:0 0 20px}
-  :lang(ja) .lede{font-size:16px; line-height:1.85}
-  :lang(ja) h1,:lang(ja) .lede,:lang(ja) .headline,:lang(ja) .section h2{word-break:auto-phrase}
+  :is(:lang(ja),:lang(zh)) .lede{font-size:16px; line-height:1.85}
+  :is(:lang(ja),:lang(zh)) h1,:is(:lang(ja),:lang(zh)) .lede,:is(:lang(ja),:lang(zh)) .headline,:is(:lang(ja),:lang(zh)) .section h2{word-break:auto-phrase}
   .privacy{display:inline-flex; align-items:center; gap:8px; margin:0; font-size:13px; color:var(--mint);
            background:var(--mint-soft); border:1px solid rgba(79,209,174,.2); padding:5px 13px 5px 10px; border-radius:999px}
 
@@ -103,7 +114,7 @@
   /* ---------- source tabs ---------- */
   .sources{display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; margin-top:18px}
   .sources .label{font:500 10.5px var(--mono); color:var(--fg-3); text-transform:uppercase; letter-spacing:.1em}
-  :lang(ja) .sources .label{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
+  :is(:lang(ja),:lang(zh)) .sources .label{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
   .sources .sep{width:1px; height:22px; background:var(--hair-2)}
   .tabs{display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--surface); border:1px solid var(--hair-2); border-radius:12px}
   .tabs button,.file-tab{border:0; background:none; color:var(--fg-2); font-size:13px; padding:6px 13px; border-radius:9px;
@@ -116,12 +127,13 @@
   .file-tab:hover{color:var(--fg)}
   .file-tab[aria-pressed=true]{color:var(--fg); border-color:rgba(242,129,60,.5); background:var(--surface-2)}
 
+  .sources .clear{margin-left:auto}
   #status{margin:14px 0 0; font-size:13.5px; color:var(--fg-2)}
   #status:empty{display:none}
   #status.err{color:var(--rose)}
 
   /* ---------- cards ---------- */
-  #result,.skeleton-wrap{margin-top:22px; display:grid; gap:18px}
+  #result{margin-top:22px; display:grid; gap:18px}
   .card{position:relative; min-width:0; padding:24px; border-radius:var(--r); border:1px solid var(--hair); box-shadow:var(--lift);
         background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0) 140px),var(--surface)}
   .card-head{display:flex; justify-content:space-between; align-items:center; gap:10px 16px; flex-wrap:wrap; margin-bottom:18px}
@@ -143,7 +155,7 @@
          color:var(--tone); background:var(--tone-soft); border:1px solid color-mix(in srgb,var(--tone) 32%,transparent)}
   .fname{font:12.5px var(--mono); color:var(--fg-3); word-break:break-all}
   .headline{font:400 28px/1.2 var(--serif); letter-spacing:-.005em; margin:0 0 24px; max-width:36ch}
-  :lang(ja) .headline{font-size:22px; line-height:1.55; max-width:none}
+  :is(:lang(ja),:lang(zh)) .headline{font-size:22px; line-height:1.55; max-width:none}
   .stats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0 0 20px; border:1px solid var(--hair); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.2)}
   .stat{padding:14px 16px 15px; border-left:1px solid var(--hair); min-width:0}
   .stat:first-child{border-left:0}
@@ -156,16 +168,12 @@
   ul.notes li::before{content:""; position:absolute; left:3px; top:.66em; width:5px; height:5px; border-radius:50%; background:var(--tone); opacity:.75}
   .synth{margin:0; font-size:15px; color:var(--fg-2); max-width:78ch}
 
-  /* skeleton */
-  .sk{border-radius:7px; background:linear-gradient(90deg,rgba(255,255,255,.035) 20%,rgba(255,255,255,.075) 50%,rgba(255,255,255,.035) 80%);
-      background-size:220% 100%; animation:shimmer 1.3s linear infinite}
-  @keyframes shimmer{from{background-position:120% 0} to{background-position:-120% 0}}
 
   /* controls */
   .toolbar{display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; margin:0 0 18px; padding:0 0 18px; border-bottom:1px solid var(--hair)}
   .ctl{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--fg-3)}
   .ctl > span:first-child{font:500 10.5px var(--mono); text-transform:uppercase; letter-spacing:.09em}
-  :lang(ja) .ctl > span:first-child{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
+  :is(:lang(ja),:lang(zh)) .ctl > span:first-child{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
   .seg{display:inline-flex; gap:2px; padding:2px; background:rgba(0,0,0,.25); border:1px solid var(--hair-2); border-radius:9px}
   .seg button{background:none; border:0; padding:4px 10px; font-size:12.5px; color:var(--fg-2); border-radius:7px; font-variant-numeric:tabular-nums; transition:background .15s, color .15s}
   .seg button:hover{color:var(--fg)}
@@ -191,6 +199,8 @@
            padding:8px 17px 8px 14px; font-size:13px; font-weight:600; color:#1c0c02; background:linear-gradient(180deg,#ff9150,#ee7630);
            box-shadow:0 1px 0 rgba(255,255,255,.28) inset, 0 8px 20px -10px rgba(242,129,60,.9); transition:filter .15s, transform .1s}
   #playBtn:hover{filter:brightness(1.07)}
+  #playBtn:disabled,.btn-ghost:disabled{opacity:.38; cursor:not-allowed; filter:none; box-shadow:none; transform:none}
+  .btn-ghost:disabled:hover{color:var(--fg-2); border-color:var(--hair-2); background:none}
   #playBtn:active{transform:translateY(1px)}
   #playBtn .i-pause, #playBtn.playing .i-play{display:none}
   #playBtn.playing .i-pause{display:block}
@@ -211,7 +221,7 @@
   .section-head{display:flex; align-items:baseline; gap:14px; margin-bottom:24px}
   .num{font:500 11px var(--mono); color:var(--ember); letter-spacing:.1em}
   .section h2{margin:0; font:400 36px/1.1 var(--serif); letter-spacing:-.01em}
-  :lang(ja) .section h2{font-size:28px; letter-spacing:.02em}
+  :is(:lang(ja),:lang(zh)) .section h2{font-size:28px; letter-spacing:.02em}
   .how-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
   .how-card{padding:22px 22px 20px}
   .how-card svg{display:block; width:100%; height:auto; margin:0 0 18px; overflow:visible}
@@ -289,10 +299,15 @@
         <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
         <span class="gh-label">GitHub</span>
       </a>
-      <button class="lang" id="langBtn" type="button">
+      <label class="lang">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5S14.6 18.7 12 21.5M12 2.5C9.4 5.3 8.1 8.5 8.1 12s1.3 6.7 3.9 9.5"/></svg>
-        <span id="langLabel">日本語</span>
-      </button>
+        <select id="langSel" aria-label="Language">
+          <option value="en" lang="en">English</option>
+          <option value="zh" lang="zh-Hans">中文</option>
+          <option value="ja" lang="ja">日本語</option>
+        </select>
+        <svg class="chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M2 3.5l3 3 3-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </label>
     </nav>
   </header>
 
@@ -326,20 +341,14 @@
       <button type="button" data-src="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
       <button type="button" data-src="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
     </div>
+    <button type="button" class="btn-ghost clear" id="clearBtn" hidden>
+      <svg width="11" height="11" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <span data-i18n="source.clear">Clear</span>
+    </button>
   </div>
 
   <div id="status" role="status" aria-live="polite"></div>
 
-  <div class="skeleton-wrap" id="skeleton" aria-hidden="true">
-    <div class="card">
-      <div class="sk" style="width:128px;height:26px;border-radius:999px;margin-bottom:16px"></div>
-      <div class="sk" style="width:min(460px,80%);height:28px;margin-bottom:24px"></div>
-      <div class="sk" style="height:72px;border-radius:12px;margin-bottom:20px"></div>
-      <div class="sk" style="width:88%;height:12px;margin-bottom:10px"></div>
-      <div class="sk" style="width:64%;height:12px"></div>
-    </div>
-    <div class="card"><div class="sk" style="height:320px;border-radius:12px"></div></div>
-  </div>
 
   <div id="result" hidden>
     <div class="card verdict-card" id="verdictCard">

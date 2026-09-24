@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
-[English](README.md) · **日本語**
+[English](README.md) · [中文](README.zh.md) · **日本語**
 
 **その FLAC、実は mp3 を詰め替えただけでは？** 非可逆エンコーダーはどれも、
 ある周波数（カットオフ）より上を捨てる。その「崖」はロスレス形式に変換し直しても
@@ -94,16 +94,21 @@ spf audit ~/Music --recursive --verbose
 検出したカットオフも線で示す。カーソルを重ねると時刻・周波数・レベルを読み取れ、
 クリックするとその位置から再生する。
 
-ページは空の状態では開かない。最初に 128 kbps の mp3 を経由したクリップを表示し、
-タブでエンコード前の本物の FLAC、窓長の違いを見比べるための合成信号（スイープ・
-純音・クリック）、そしてドロップした自分のファイルに切り替えられる。どれも
-デコードは一度だけなので、戻るときは待ち時間がない。長時間スペクトルには本物の
-FLAC が緑の参考線として常に重なっている。2 本の曲線は 16.7 kHz まで一致し、
-そこから先は片方しか続かない。主張のすべてが 1 枚に収まっている。カーソルを
-重ねると任意の周波数で両方のレベルを読み取れる。残り 2 つのサンプルには直接リンクがある：
+何も読み込んでいないとき、ページはゼロの状態にある。判定は「未読み込み」、数値は
+すべて「—」、2 つのグラフは空の座標軸だけだ。ファイルをドロップするか、3 つの
+サンプルから選ぶ：128 kbps の mp3 を経由したクリップ、そのエンコード前の本物の FLAC、
+窓長の違いを見比べるための合成信号（スイープ・純音・クリック）。どれもデコードは
+一度だけなので、戻るときは待ち時間がない。**クリア**を押すとゼロの状態に戻る。
+長時間スペクトルには本物の FLAC が緑の参考線として重なる。mp3 のサンプルでは
+2 本の曲線が 16.7 kHz まで一致し、そこから先は片方しか続かない。主張のすべてが
+1 枚に収まっている。カーソルを重ねると任意の周波数で両方のレベルを読み取れる。
+
+サンプルにはそれぞれ直接リンクがある：
+[`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3&lang=ja)、
 [`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine&lang=ja)、
 [`?sample=synth`](https://shianjeng.github.io/spectral-forensics/?sample=synth&lang=ja)。
-ページは英語と日本語に対応している（`?lang=ja` で日本語固定）。
+ページは英語・中国語・日本語に対応している（`?lang=en`、`zh`、`ja`）。フォントは
+リポジトリから配信しているので、GitHub Pages 自体を除けば外部への通信は一切ない。
 
 JavaScript 版は Python 版を参考にしただけではなく、Python 版と一致することを
 テストで保証している。`tests/test_web_parity.py` は同一の信号を両方に与え、
@@ -356,7 +361,8 @@ spectral_forensics/
 docs/              ブラウザ版デモ — 静的ファイルで、GitHub Pages がそのまま配信する
 ├── analysis.js    audit + STFT + 再割り当て（上の Python からの移植）
 ├── app.js         ページ本体
-├── i18n.js        英語 / 日本語の文言
+├── i18n.js        英語 / 中国語 / 日本語の文言
+├── fonts/         Geist、Geist Mono、Instrument Serif（SIL OFL 1.1）
 └── samples/       examples/make_web_samples.py で生成
 ```
 

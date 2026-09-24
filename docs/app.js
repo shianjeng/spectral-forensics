@@ -1,6 +1,6 @@
 /*
- * docs/index.html 的交互：读文件 / 示例 → 转码判定 + 时频图 + 长时间频谱，英日双语。
- * 只有一个页面：打开时直接显示 mp3 示例，示例和用户的文件是同一排标签，切换不重新解码。
+ * docs/index.html 的交互：读文件 / 示例 → 转码判定 + 时频图 + 长时间频谱，英中日三语。
+ * 只有一个页面：没有音频时一切归零；示例和用户的文件是同一排标签，切换不重新解码。
  * 算法都在 analysis.js（globalThis.SPF），这里只管界面。
  */
 (function () {
@@ -36,12 +36,16 @@ const SAMPLES = {
 
 /* ---------------------------- 语言 ---------------------------- */
 
+const LANGS = ["en", "zh", "ja"];
+const HTML_LANG = { en:"en", zh:"zh-Hans", ja:"ja" };
+
 function pickLang(){
   const q = new URLSearchParams(location.search).get("lang");
-  if(q==="en" || q==="ja") return q;
+  if(LANGS.includes(q)) return q;
   const s = store.get("spf.lang");
-  if(s==="en" || s==="ja") return s;
-  return (navigator.language||"").toLowerCase().startsWith("ja") ? "ja" : "en";
+  if(LANGS.includes(s)) return s;
+  const nav = (navigator.language||"").toLowerCase();
+  return nav.startsWith("zh") ? "zh" : nav.startsWith("ja") ? "ja" : "en";
 }
 let lang = pickLang();
 
@@ -51,14 +55,14 @@ function t(key, ...args){
 }
 
 function applyLang(){
-  document.documentElement.lang = lang;
+  document.documentElement.lang = HTML_LANG[lang];
   document.title = t("meta.title");
   for(const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   for(const el of document.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);
-  $("langLabel").textContent = t("lang.switch");
-  $("langBtn").lang = lang==="en" ? "ja" : "en";
+  $("langSel").value = lang;
+  $("langSel").setAttribute("aria-label", t("lang.label"));
   $("drop").setAttribute("aria-label", t("drop.title"));
-  if(state.file){ renderVerdict(); drawSpectrogram(); drawOverlay(); drawChart(); }
+  renderVerdict(); drawSpectrogram(); drawOverlay(); drawChart();   // 零状态里也有文字
   updateTransport();
   updateResLabel();
 }
@@ -103,7 +107,7 @@ let selectToken = 0;         // 连续点击时只让最后一次生效
 
 const sourceName = key => key==="synth" ? "sweep-tones-clicks.wav" : SAMPLES[key].name;
 
-/** 读入一个示例。真 FLAC 也是长时间频谱的参考曲线，所以页面一打开就在后台读。 */
+/** 读入一个示例。真 FLAC 也是长时间频谱的参考曲线，第一次显示别的来源时在后台读进来。 */
 function loadSource(key, report){
   if(sources.has(key)) return Promise.resolve(sources.get(key));
   if(pending.has(key)) return pending.get(key);
@@ -132,7 +136,7 @@ async function select(key){
   try{
     f = await loadSource(key, (msg, isErr) => { if(token===selectToken) say(msg, isErr); });
   }catch(err){
-    if(token===selectToken){ say(t("status.sampleFail"), true); markTabs(active); $("skeleton").hidden = true; }
+    if(token===selectToken){ say(t("status.sampleFail"), true); markTabs(active); }
     return;
   }
   if(token!==selectToken) return;
@@ -147,7 +151,7 @@ async function openFile(file){
   try{
     buf = await audioCtx().decodeAudioData(await file.arrayBuffer());
   }catch(err){
-    if(token===selectToken){ say(t("status.decodeFail"), true); if(!state.file) $("skeleton").hidden = true; }
+    if(token===selectToken) say(t("status.decodeFail"), true);
     return;
   }
   if(token!==selectToken) return;
@@ -228,7 +232,7 @@ function show(key, f){
   $("verdictCard").hidden = synth;
   $("chartCard").hidden = synth;
   $("synthCard").hidden = !synth;
-  $("skeleton").hidden = true;
+  $("clearBtn").hidden = false;
   const res = $("result");
   res.hidden = false;
   res.classList.remove("swap");
@@ -242,17 +246,47 @@ function show(key, f){
   updateTransport();
   updateResLabel();
   computeSpectrogram();
+  if(key!=="genuine" && !sources.has("genuine")){
+    loadSource("genuine").then(() => { if(state.file && active!=="genuine") drawChart(); }).catch(() => { /* 没有参考曲线也能用 */ });
+  }
+}
+
+/** 零状态：没有音频时判定、时频图、长时间频谱都归零，只留坐标轴和提示。 */
+function showEmpty(){
+  stopPlayback(true);
+  ++selectToken;                    // 还在读的来源读完也不再显示
+  active = null;
+  state.file = null;
+  state.job++;
+  state.raster = null;
+  state.image = null;
+  state.hover = null;
+  state.chartHover = null;
+  $("specBusy").hidden = true;
+  $("verdictCard").hidden = false;
+  $("chartCard").hidden = false;
+  $("synthCard").hidden = true;
+  $("result").hidden = false;
+  $("clearBtn").hidden = true;
+  markTabs(null);
+  syncUrl(null);
+  renderVerdict();
+  drawSpectrogram();
+  drawOverlay();
+  drawChart();
+  updateTransport();
+  updateResLabel();
 }
 
 function markTabs(key){
   for(const b of $("sources").querySelectorAll("button[data-src]")) b.setAttribute("aria-pressed", String(b.dataset.src===key));
 }
 
-/** 地址栏跟着标签走：默认的 mp3 示例和本地文件不带参数，另外两个示例带 ?sample=，可以直接分享。 */
+/** 地址栏跟着标签走：示例带 ?sample=，可以直接分享；本地文件和零状态不带参数。 */
 function syncUrl(key){
   let url;
   try{ url = new URL(location.href); }catch(e){ return; }
-  if(key==="genuine" || key==="synth") url.searchParams.set("sample", key);
+  if(key && key!=="file") url.searchParams.set("sample", key);
   else url.searchParams.delete("sample");
   const next = url.pathname + url.search + url.hash;
   if(next===location.pathname + location.search + location.hash) return;
@@ -263,7 +297,17 @@ function syncUrl(key){
 
 function renderVerdict(){
   const f = state.file;
-  if(!f || !f.v) return;
+  if(!f){
+    $("badge").textContent = t("empty.badge");
+    $("badge").className = "badge";
+    $("verdictCard").removeAttribute("data-tier");
+    $("fname").textContent = "";
+    $("headline").textContent = t("empty.headline");
+    for(const id of ["s-cut", "s-steep", "s-stereo", "s-dur"]) $(id).textContent = "—";
+    $("notes").replaceChildren();
+    return;
+  }
+  if(!f.v) return;
   const { v, cut, stereoHz, isLossless, sr, n } = f;
   $("badge").textContent = t("tier."+v.tier);
   $("badge").className = "badge "+v.tier;
@@ -408,11 +452,10 @@ function drawSpectrogram(){
   const g = c.getContext("2d"), { plot } = G;
   g.setTransform(G.dpr,0,0,G.dpr,0,0);
   g.fillStyle = "#03050a"; g.fillRect(0,0,G.cssW,G.cssH);
-  if(!f) return;
-  const axis = R ? R.axis : { logFreq: state.spec.logFreq, fmin: state.spec.logFreq?20:0, fmax: f.sr/2 };
-  const dur = f.n/f.sr;
+  const axis = R ? R.axis : { logFreq: state.spec.logFreq, fmin: state.spec.logFreq?20:0, fmax: (f ? f.sr : 44100)/2 };
+  const dur = f ? f.n/f.sr : 0;
 
-  if(state.image){
+  if(f && state.image){
     g.imageSmoothingEnabled = true;
     g.drawImage(state.image, plot.x, plot.y, plot.w, plot.h);
   }
@@ -434,13 +477,14 @@ function drawSpectrogram(){
   const step = steps.find(s => dur/s <= plot.w/70) || 60;
   const unitW = g.measureText(t("spec.time")).width;
   g.textAlign = "center"; g.textBaseline = "top";
-  for(let s=0; s<=dur+1e-9; s+=step){
+  for(let s=0; dur>0 && s<=dur+1e-9; s+=step){
     const x = Math.round(plot.x + plot.w*s/dur)+0.5;
     g.beginPath(); g.moveTo(x, plot.y+plot.h); g.lineTo(x, plot.y+plot.h+4); g.stroke();
     if(x < plot.x+plot.w-unitW-18) g.fillText(step<1 ? s.toFixed(1) : String(Math.round(s)), x, plot.y+plot.h+7);
   }
   g.textAlign = "right"; g.fillStyle = INK.caption;
   g.fillText(t("spec.time"), plot.x+plot.w, plot.y+plot.h+7);
+  if(!f){ emptyMessage(g, plot.x, plot.y, plot.w, plot.h, t("empty.spec")); return; }
 
   // 截止频率
   const cut = f.cut && f.cut.cutoffHz;
@@ -456,6 +500,11 @@ function drawSpectrogram(){
     g.fillStyle = "#ff8fa6"; g.textAlign = "left"; g.textBaseline = "middle";
     g.fillText(label, plot.x+plot.w-w-9, y-13);
   }
+}
+
+function emptyMessage(g, x, y, w, h, text){
+  g.font = "13px "+SANS; g.fillStyle = INK.caption; g.textAlign = "center"; g.textBaseline = "middle";
+  g.fillText(text, x+w/2, y+h/2);
 }
 
 /** 覆盖层：播放游标 + 鼠标读数。单独一层，播放时每帧只重画这一层。 */
@@ -552,11 +601,13 @@ function tick(){
 
 function updateClock(){
   const f = state.file;
-  $("clock").textContent = f ? `${fmtClock(Math.min(position(), f.n/f.sr))} / ${fmtClock(f.n/f.sr)}` : "";
+  $("clock").textContent = f ? `${fmtClock(Math.min(position(), f.n/f.sr))} / ${fmtClock(f.n/f.sr)}` : `${fmtClock(0)} / ${fmtClock(0)}`;
 }
 function updateTransport(){
   $("playLabel").textContent = player.playing ? t("spec.pause") : t("spec.play");
   $("playBtn").classList.toggle("playing", player.playing);
+  $("playBtn").disabled = !state.file;
+  $("pngBtn").disabled = !state.file;
   updateClock();
 }
 function togglePlay(){
@@ -579,7 +630,7 @@ function chartGeometry(){
   const dpr = Math.min(window.devicePixelRatio||1, 2);
   const cssW = $("chartWrap").clientWidth || 900, cssH = Math.round(Math.max(220, Math.min(360, cssW*0.4)));
   const L = 58, R = 14, T = 14, B = 44;
-  const fMin = 40, fMax = f.sr/2, dbMin = -100, dbMax = 6;
+  const fMin = 40, fMax = (f ? f.sr : 44100)/2, dbMin = -100, dbMax = 6;
   const a = Math.log10(fMin), b = Math.log10(fMax);
   return {
     dpr, cssW, cssH, L, R, T, B, fMin, fMax, dbMin,
@@ -611,11 +662,13 @@ function levelAt(f, hz){
 
 function drawChart(){
   const f = state.file;
-  if(!f || !f.cut) return;
-  const ref = reference();
-  $("legendThis").textContent = f.name;
+  if(f && !f.cut) return;           // 合成信号：这张卡是隐藏的
+  const ref = f ? reference() : null;
+  $("legendThis").textContent = f ? f.name : "";
+  $("legendThis").parentElement.hidden = !f;
+  $("legendThis").closest(".legend").hidden = !f;   // 零状态没有曲线可读，整行图例和提示都收起
   $("legendRef").hidden = !ref;
-  $("refCtl").hidden = active==="genuine";
+  $("refCtl").hidden = !f || active==="genuine";
 
   const c = $("chart"), G = chartGeometry();
   sizeCanvas(c, G);
@@ -637,7 +690,7 @@ function drawChart(){
     g.fillText(String(d).replace("-","−")+" dB", L-8, Y(d));
   }
 
-  const cut = f.cut.cutoffHz;
+  const cut = f ? f.cut.cutoffHz : null;
   if(cut!==null && cut/1000 < S.FULL_BAND_KHZ){
     g.strokeStyle = "#b83355"; g.lineWidth = 1.5; g.setLineDash([6,5]);
     g.beginPath(); g.moveTo(X(cut),T); g.lineTo(X(cut),H-B); g.stroke();
@@ -647,7 +700,8 @@ function drawChart(){
   }
 
   if(ref) strokeCurve(g, G, ref, "rgba(79,209,174,.62)", 1.4);
-  strokeCurve(g, G, f, "#f2813c", 1.8);
+  if(f) strokeCurve(g, G, f, "#f2813c", 1.8);
+  else emptyMessage(g, L, T, W-L-R, H-T-B, t("empty.chart"));
 
   g.fillStyle = INK.caption; g.textAlign = "left"; g.textBaseline = "bottom";
   g.font = "12px "+SANS;
@@ -660,11 +714,12 @@ function drawChart(){
 /** 长时间频谱的鼠标读数：该频率上本文件和参考曲线各自的电平。 */
 function drawChartOverlay(){
   const c = $("chartOverlay"), f = state.file, G = state.chartGeom;
-  if(!f || !f.cut || !G) return;
+  if(!G) return;
   sizeCanvas(c, G);
   const g = c.getContext("2d");
   g.setTransform(G.dpr,0,0,G.dpr,0,0);
   g.clearRect(0,0,G.cssW,G.cssH);
+  if(!f || !f.cut) return;
   const h = state.chartHover;
   if(!h || h.x<G.L || h.x>G.cssW-G.R || h.y<G.T || h.y>G.cssH-G.B) return;
 
@@ -826,10 +881,23 @@ function setup(){
     drawChart();
   });
 
-  $("langBtn").addEventListener("click", () => {
-    lang = lang==="en" ? "ja" : "en";
+  $("langSel").addEventListener("change", () => {
+    lang = $("langSel").value;
     store.set("spf.lang", lang);
+    // 地址里写死了 ?lang= 的话一起改，刷新后不会跳回去
+    try{
+      const u = new URL(location.href);
+      if(u.searchParams.has("lang")){ u.searchParams.set("lang", lang); history.replaceState(null, "", u.pathname+u.search+u.hash); }
+    }catch(e){ /* file:// 下不允许 */ }
     applyLang();
+  });
+
+  $("clearBtn").addEventListener("click", () => {
+    sources.delete("file");         // 用户的文件不再留在内存里，示例的缓存保留
+    $("fileTab").hidden = true;
+    $("fileSep").hidden = true;
+    say("");
+    showEmpty();
   });
 
   let resizeTimer = 0, lastW = 0;
@@ -846,11 +914,11 @@ function setup(){
   syncControls();
   applyLang();
 
-  // 页面一打开就有结果：默认 mp3 示例；?sample=genuine|synth 直接打开另外两个，旧链接 ?sample=mp3 照常可用
+  // 没有音频时一切归零；?sample=mp3|genuine|synth 直接打开对应的示例。
+  // 参数要在 showEmpty() 之前读：它会把地址栏里的 sample 清掉。
   const q = new URLSearchParams(location.search).get("sample");
-  select(q==="genuine" || q==="synth" ? q : "mp3");
-  // 参考曲线在后台读进来，读完补画
-  loadSource("genuine").then(() => { if(state.file && active!=="genuine") drawChart(); }).catch(() => { /* 没有参考曲线也能用 */ });
+  showEmpty();
+  if(q==="mp3" || q==="genuine" || q==="synth") select(q);
 }
 
 setup();

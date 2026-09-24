@@ -119,15 +119,17 @@ def test_the_js_file_is_valid_for_node(node: str):
         assert proc.returncode == 0, proc.stderr
 
 
-def test_both_languages_cover_every_string(run_js: RunJs):
-    """英日两种语言的键必须一致，页面上每个 data-i18n 键都要有翻译。"""
+def test_every_language_covers_every_string(run_js: RunJs):
+    """英中日三种语言的键必须一致，页面上每个 data-i18n 键都要有翻译。"""
     html = PAGE.read_text(encoding="utf-8")
     used = set(re.findall(r'data-i18n(?:-html)?="([^"]+)"', html))
     keys = run_js(
         f"const I = require({str(DOCS / 'i18n.js')!r});"
-        " out({ en: Object.keys(I.en), ja: Object.keys(I.ja) });"
+        " out(Object.fromEntries(Object.entries(I).map(([k, v]) => [k, Object.keys(v)])));"
     )
-    assert set(keys["en"]) == set(keys["ja"])
+    assert set(keys) == {"en", "zh", "ja"}
+    for lang in ("zh", "ja"):
+        assert set(keys[lang]) == set(keys["en"]), lang
     assert used, "页面里没有 data-i18n"
     missing = used - set(keys["en"])
     assert not missing, f"i18n.js 缺少 {sorted(missing)}"

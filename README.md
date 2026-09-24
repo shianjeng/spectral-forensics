@@ -4,7 +4,7 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
-**English** · [日本語](https://github.com/shianjeng/spectral-forensics/blob/main/README.ja.md)
+**English** · [中文](https://github.com/shianjeng/spectral-forensics/blob/main/README.zh.md) · [日本語](https://github.com/shianjeng/spectral-forensics/blob/main/README.ja.md)
 
 **Is that FLAC actually a re-wrapped mp3?** Every lossy encoder throws away
 everything above a cutoff, and that cliff survives conversion back into a
@@ -96,17 +96,23 @@ windows, a log or linear frequency axis, the four palettes, an adjustable dynami
 range and the detected cutoff marked. Hover over it to read time, frequency and
 level. Click to play from that point.
 
-The page never opens empty. It starts on a clip after a 128 kbps mp3 round
-trip, and tabs switch to the genuine FLAC it was encoded from, to a synthetic
-sweep with tones and clicks for comparing window lengths, and to your own file
-once you drop one. Each is decoded once, so switching back is instant. The
-long-term spectrum keeps the genuine FLAC on as a green reference line: the two
-curves coincide up to 16.7 kHz and then only one of them carries on, which is
-the whole argument in one picture. Hover over it to read both levels at any
-frequency. The other two examples have their own links,
-[`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine)
-and [`?sample=synth`](https://shianjeng.github.io/spectral-forensics/?sample=synth).
-The page is in English and Japanese.
+With nothing loaded the page sits at zero: the verdict reads "No audio", the
+figures are dashes, and both plots show empty axes. Drop a file, or pick one of
+three examples: a clip after a 128 kbps mp3 round trip, the genuine FLAC it was
+encoded from, and a synthetic sweep with tones and clicks for comparing window
+lengths. Each is decoded once, so switching back is instant, and **Clear**
+returns the page to zero. The long-term spectrum overlays the genuine FLAC as a
+green reference line. On the mp3 example the two curves coincide up to
+16.7 kHz and then only one of them carries on, which is the whole argument in
+one picture. Hover over it to read both levels at any frequency.
+
+Every example has its own link:
+[`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3),
+[`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine),
+[`?sample=synth`](https://shianjeng.github.io/spectral-forensics/?sample=synth).
+The page is in English, Chinese and Japanese (`?lang=en`, `zh` or `ja`). Its
+fonts are served from the repository, so apart from GitHub Pages itself it
+makes no network requests at all.
 
 The JavaScript is held to the Python, not just modelled on it.
 `tests/test_web_parity.py` feeds identical signals to both, asserts they land
@@ -377,7 +383,8 @@ spectral_forensics/
 docs/              the browser demo — static, served by GitHub Pages as is
 ├── analysis.js    audit + STFT + reassignment, ported from the Python above
 ├── app.js         the page
-├── i18n.js        English / Japanese strings
+├── i18n.js        English / Chinese / Japanese strings
+├── fonts/         Geist, Geist Mono, Instrument Serif (SIL OFL 1.1)
 └── samples/       built by examples/make_web_samples.py
 ```
 
