@@ -62,6 +62,8 @@ function applyLang(){
   $("langSel").value = lang;
   $("langSel").setAttribute("aria-label", t("lang.label"));
   $("drop").setAttribute("aria-label", t("drop.title"));
+  $("chartGrip").title = t("chart.resize");
+  $("chartGrip").setAttribute("aria-label", t("chart.resize"));
   renderVerdict(); drawSpectrogram(); drawOverlay(); drawChart();   // 零状态里也有文字
   updateTransport();
   updateResLabel();
@@ -83,6 +85,9 @@ const state = {
   showRef: store.get("spf.ref")!=="0",   // 长时间频谱上叠加真 FLAC 参考曲线
   chartHover: null,
   chartGeom: null,
+  chartView: { mode:"full" },  // full | cutoff | custom{f0,f1,d0,d1}，d0/d1 为 null 时纵轴自动适配
+  chartH: +store.get("spf.chartH") || null,   // 用户拖出来的高度；null 按宽度自动
+  chartDrag: null,
 };
 
 let ctx = null;
@@ -268,6 +273,7 @@ function showEmpty(){
   $("synthCard").hidden = true;
   $("result").hidden = false;
   $("clearBtn").hidden = true;
+  state.chartView = { mode:"full" };
   markTabs(null);
   syncUrl(null);
   renderVerdict();
@@ -433,7 +439,7 @@ function freqOfY(axis, plot, y){
   return axis.fmin + (axis.fmax-axis.fmin)*frac;
 }
 const fmtHz = f => f>=1000 ? (f/1000).toFixed(f>=10000 ? 1 : 2)+" kHz" : f.toFixed(0)+" Hz";
-const fmtTick = f => f>=1000 ? (f/1000)+"k" : String(f);
+const fmtTick = f => f>=1000 ? +(f/1000).toFixed(2)+"k" : String(+f.toFixed(1));
 function fmtClock(s){
   const m = Math.floor(s/60), r = s-60*m;
   return `${m}:${r<10?"0":""}${r.toFixed(1)}`;
@@ -625,19 +631,73 @@ function reference(){
   return r && r.cut && r.cut.rel ? r : null;
 }
 
+const CHART_MIN_H = 200, CHART_MAX_H = 760;
+
+/**
+ * 坐标系：频率范围由 state.chartView 决定；电平范围没指定时按可见范围内的数据自动适配，
+ * 所以低频比 200–4000 Hz 峰值还高的曲线也不会被顶端截掉。
+ */
 function chartGeometry(){
-  const f = state.file;
+  const f = state.file, ref = f ? reference() : null;
   const dpr = Math.min(window.devicePixelRatio||1, 2);
-  const cssW = $("chartWrap").clientWidth || 900, cssH = Math.round(Math.max(220, Math.min(360, cssW*0.4)));
+  const cssW = $("chartWrap").clientWidth || 900;
+  const autoH = Math.round(Math.max(220, Math.min(360, cssW*0.4)));
+  const cssH = state.chartH ? Math.round(Math.max(CHART_MIN_H, Math.min(CHART_MAX_H, state.chartH))) : autoH;
   const L = 58, R = 14, T = 14, B = 44;
-  const fMin = 40, fMax = (f ? f.sr : 44100)/2, dbMin = -100, dbMax = 6;
-  const a = Math.log10(fMin), b = Math.log10(fMax);
+  const nyq = (f ? f.sr : 44100)/2;
+
+  let f0 = 40, f1 = nyq, d0 = null, d1 = null;
+  const v = state.chartView;
+  if(v.mode==="cutoff"){
+    const c = f && f.cut && f.cut.cutoffHz;
+    const centre = c && c/1000 < S.FULL_BAND_KHZ ? c : nyq*0.8;
+    f0 = Math.max(40, centre*0.5); f1 = nyq;
+  }else if(v.mode==="custom"){
+    f0 = Math.max(20, v.f0); f1 = Math.min(nyq, v.f1); d0 = v.d0; d1 = v.d1;
+    if(f1 < f0*1.02){ f0 = 40; f1 = nyq; }
+  }
+
+  if(d0===null || d1===null){
+    let lo = Infinity, hi = -Infinity;
+    for(const src of [f, ref]){
+      if(!src || !src.cut || !src.cut.rel) continue;
+      const { freqs } = src, rel = src.cut.rel;
+      for(let i=1;i<freqs.length;i++){
+        if(freqs[i]<f0) continue;
+        if(freqs[i]>f1) break;
+        if(rel[i]<lo) lo = rel[i];
+        if(rel[i]>hi) hi = rel[i];
+      }
+    }
+    if(hi===-Infinity){ lo = -100; hi = 3; }
+    d1 = Math.ceil((hi+3)/10)*10;
+    d0 = Math.max(-100, Math.floor((lo-3)/10)*10);
+    if(d1-d0 < 20) d0 = d1-20;
+  }
+
+  const a = Math.log10(f0), b = Math.log10(f1), pw = cssW-L-R, ph = cssH-T-B;
   return {
-    dpr, cssW, cssH, L, R, T, B, fMin, fMax, dbMin,
-    X: hz => L+(Math.log10(Math.max(hz,fMin))-a)/(b-a)*(cssW-L-R),
-    hzAt: x => Math.pow(10, a+(x-L)/(cssW-L-R)*(b-a)),
-    Y: d => T+(dbMax-d)/(dbMax-dbMin)*(cssH-T-B),
+    dpr, cssW, cssH, L, R, T, B, f0, f1, d0, d1,
+    X: hz => L+(Math.log10(hz)-a)/(b-a)*pw,
+    hzAt: x => Math.pow(10, a+(x-L)/pw*(b-a)),
+    Y: d => T+(d1-d)/(d1-d0)*ph,
+    dbAt: y => d1-(y-T)/ph*(d1-d0),
   };
+}
+
+/** 频率轴刻度：宽范围用 1-2-5；放大到两个八度以内时改用等间距的整数刻度（如 12k、14k、16k）。 */
+function freqTicks(f0, f1){
+  if(f1/f0 <= 4){
+    const raw = (f1-f0)/6, e = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1,2,2.5,5,10].map(m => m*e).find(v => v >= raw);
+    const out = [];
+    for(let v=Math.ceil(f0/step)*step; v<=f1; v+=step) out.push(+v.toPrecision(12));
+    return out;
+  }
+  const out = [];
+  for(let k=Math.floor(Math.log10(f0)); k<=Math.ceil(Math.log10(f1)); k++)
+    for(const m of [1,2,5]){ const v = m*Math.pow(10,k); if(v>=f0 && v<=f1) out.push(v); }
+  return out;
 }
 
 function strokeCurve(g, G, f, color, width){
@@ -646,10 +706,10 @@ function strokeCurve(g, G, f, color, width){
   g.strokeStyle = color; g.lineWidth = width; g.lineJoin = "round"; g.beginPath();
   let started = false;
   for(let i=1;i<freqs.length;i++){
-    if(freqs[i]<G.fMin) continue;
-    if(freqs[i]>G.fMax) break;
-    const x = G.X(freqs[i]), y = G.Y(Math.max(rel[i], G.dbMin));
+    if(freqs[i+1]!==undefined && freqs[i+1]<G.f0) continue;   // 多画一个点，曲线在边缘不断开
+    const x = G.X(freqs[i]), y = G.Y(Math.max(rel[i], G.d0-10));
     if(started) g.lineTo(x,y); else { g.moveTo(x,y); started = true; }
+    if(freqs[i]>G.f1) break;
   }
   g.stroke();
 }
@@ -669,6 +729,8 @@ function drawChart(){
   $("legendThis").closest(".legend").hidden = !f;   // 零状态没有曲线可读，整行图例和提示都收起
   $("legendRef").hidden = !ref;
   $("refCtl").hidden = !f || active==="genuine";
+  $("zoomCtl").hidden = !f;
+  for(const b of $("zoomSeg").children) b.setAttribute("aria-pressed", String(b.dataset.v===state.chartView.mode));
 
   const c = $("chart"), G = chartGeometry();
   sizeCanvas(c, G);
@@ -679,29 +741,42 @@ function drawChart(){
   g.clearRect(0,0,W,H);
   g.strokeStyle = INK.grid; g.lineWidth = 1; g.font = "11px "+MONO;
   g.fillStyle = INK.caption; g.textAlign = "center"; g.textBaseline = "top";
-  for(const hz of [50,100,200,500,1000,2000,5000,10000,20000]){
-    if(hz<G.fMin || hz>G.fMax) continue;
-    g.beginPath(); g.moveTo(X(hz)+0.5,T); g.lineTo(X(hz)+0.5,H-B); g.stroke();
-    g.fillText(fmtTick(hz), X(hz), H-B+6);
+  let lastLabel = -Infinity;
+  for(const hz of freqTicks(G.f0, G.f1)){
+    const x = Math.round(X(hz))+0.5;
+    g.beginPath(); g.moveTo(x,T); g.lineTo(x,H-B); g.stroke();
+    if(x-lastLabel >= 42 && x <= W-R-10){ g.fillText(fmtTick(hz), x, H-B+6); lastLabel = x; }
   }
+  const span = G.d1-G.d0, step = span<=40 ? 5 : span<=90 ? 10 : 20;
   g.textAlign = "right"; g.textBaseline = "middle";
-  for(let d=0; d>=G.dbMin; d-=20){
-    g.beginPath(); g.moveTo(L,Y(d)+0.5); g.lineTo(W-R,Y(d)+0.5); g.stroke();
-    g.fillText(String(d).replace("-","−")+" dB", L-8, Y(d));
+  for(let d=Math.ceil(G.d0/step)*step; d<=G.d1; d+=step){
+    const y = Math.round(Y(d))+0.5;
+    g.beginPath(); g.moveTo(L,y); g.lineTo(W-R,y); g.stroke();
+    g.fillText(String(d).replace("-","−")+" dB", L-8, y);
   }
 
+  g.save();
+  g.beginPath(); g.rect(L, T, W-L-R, H-T-B); g.clip();
   const cut = f ? f.cut.cutoffHz : null;
-  if(cut!==null && cut/1000 < S.FULL_BAND_KHZ){
+  const showCut = cut!==null && cut/1000 < S.FULL_BAND_KHZ && cut>=G.f0 && cut<=G.f1;
+  if(showCut){
     g.strokeStyle = "#b83355"; g.lineWidth = 1.5; g.setLineDash([6,5]);
     g.beginPath(); g.moveTo(X(cut),T); g.lineTo(X(cut),H-B); g.stroke();
     g.setLineDash([]);
-    g.fillStyle = "#ff8fa6"; g.textAlign = "right"; g.textBaseline = "top";
-    g.fillText((cut/1000).toFixed(1)+" kHz", X(cut)-8, T+6);
   }
-
   if(ref) strokeCurve(g, G, ref, "rgba(79,209,174,.62)", 1.4);
   if(f) strokeCurve(g, G, f, "#f2813c", 1.8);
-  else emptyMessage(g, L, T, W-L-R, H-T-B, t("empty.chart"));
+  g.restore();
+
+  if(showCut){
+    const label = (cut/1000).toFixed(1)+" kHz";
+    g.font = "11px "+MONO; g.fillStyle = "#ff8fa6"; g.textBaseline = "top";
+    const w = g.measureText(label).width;
+    const leftOk = X(cut)-8-w >= L+4;
+    g.textAlign = leftOk ? "right" : "left";
+    g.fillText(label, leftOk ? X(cut)-8 : X(cut)+8, T+6);
+  }
+  if(!f) emptyMessage(g, L, T, W-L-R, H-T-B, t("empty.chart"));
 
   g.fillStyle = INK.caption; g.textAlign = "left"; g.textBaseline = "bottom";
   g.font = "12px "+SANS;
@@ -711,7 +786,7 @@ function drawChart(){
   drawChartOverlay();
 }
 
-/** 长时间频谱的鼠标读数：该频率上本文件和参考曲线各自的电平。 */
+/** 覆盖层：框选范围，或鼠标所在频率上本文件和参考曲线各自的电平。 */
 function drawChartOverlay(){
   const c = $("chartOverlay"), f = state.file, G = state.chartGeom;
   if(!G) return;
@@ -720,31 +795,69 @@ function drawChartOverlay(){
   g.setTransform(G.dpr,0,0,G.dpr,0,0);
   g.clearRect(0,0,G.cssW,G.cssH);
   if(!f || !f.cut) return;
-  const h = state.chartHover;
-  if(!h || h.x<G.L || h.x>G.cssW-G.R || h.y<G.T || h.y>G.cssH-G.B) return;
+  const px0 = G.L, px1 = G.cssW-G.R, py0 = G.T, py1 = G.cssH-G.B;
+  const clampX = x => Math.max(px0, Math.min(px1, x)), clampY = y => Math.max(py0, Math.min(py1, y));
 
-  const hz = Math.min(G.fMax, G.hzAt(h.x)), x = Math.round(h.x)+0.5;
+  const d = state.chartDrag;
+  if(d){
+    const xOnly = Math.abs(d.y1-d.y0) < 12;
+    const x0 = clampX(Math.min(d.x0,d.x1)), x1 = clampX(Math.max(d.x0,d.x1));
+    const y0 = xOnly ? py0 : clampY(Math.min(d.y0,d.y1)), y1 = xOnly ? py1 : clampY(Math.max(d.y0,d.y1));
+    g.fillStyle = "rgba(242,129,60,.10)"; g.fillRect(x0, y0, x1-x0, y1-y0);
+    g.strokeStyle = "rgba(242,129,60,.65)"; g.lineWidth = 1; g.strokeRect(x0+0.5, y0+0.5, x1-x0-1, y1-y0-1);
+    return;
+  }
+
+  const h = state.chartHover;
+  if(!h || h.x<px0 || h.x>px1 || h.y<py0 || h.y>py1) return;
+  const hz = G.hzAt(h.x), x = Math.round(h.x)+0.5;
   const ref = reference(), mine = levelAt(f, hz), theirs = ref ? levelAt(ref, hz) : null;
   g.strokeStyle = "rgba(240,242,248,.35)"; g.lineWidth = 1;
-  g.beginPath(); g.moveTo(x, G.T); g.lineTo(x, G.cssH-G.B); g.stroke();
-  const dot = (d, color) => {
-    if(d===null) return;
-    g.fillStyle = color; g.beginPath(); g.arc(x, G.Y(Math.max(d, G.dbMin)), 3.5, 0, 2*Math.PI); g.fill();
+  g.beginPath(); g.moveTo(x, py0); g.lineTo(x, py1); g.stroke();
+  const dot = (v, color) => {
+    if(v===null || v>G.d1 || v<G.d0) return;
+    g.fillStyle = color; g.beginPath(); g.arc(x, G.Y(v), 3.5, 0, 2*Math.PI); g.fill();
   };
   dot(theirs, INK.ref);
   dot(mine, "#f2813c");
 
-  const fmtDb = d => d===null ? "—" : d<=G.dbMin ? "≤ −100 dB" : d.toFixed(0).replace("-","−")+" dB";
+  const fmtDb = v => v===null ? "—" : v<=-100 ? "≤ −100 dB" : v.toFixed(0).replace("-","−")+" dB";
   let text = `${fmtHz(hz)} · ${fmtDb(mine)}`;
   if(ref) text += ` · ${t("chart.refRead")} ${fmtDb(theirs)}`;
   g.font = "12px "+MONO;
   const w = g.measureText(text).width + 12;
   let bx = x+12, by = h.y-28;         // 跟着鼠标走，和时频图的读数一致，不会固定压住截止频率标签
-  if(bx+w > G.cssW-G.R) bx = x-12-w;
-  if(by < G.T) by = h.y+10;
+  if(bx+w > px1) bx = x-12-w;
+  if(by < py0) by = h.y+10;
   g.fillStyle = "rgba(5,7,13,.88)"; g.fillRect(bx, by, w, 20);
   g.fillStyle = "#f0f2f8"; g.textAlign = "left"; g.textBaseline = "middle";
   g.fillText(text, bx+6, by+10);
+}
+
+/** 框选结束：横着拖只放大频率（电平自动适配），拖出一个框则两个轴一起放大。 */
+function finishChartDrag(){
+  const d = state.chartDrag, G = state.chartGeom;
+  state.chartDrag = null;
+  if(!d || !G) return drawChartOverlay();
+  const px0 = G.L, px1 = G.cssW-G.R, py0 = G.T, py1 = G.cssH-G.B;
+  const x0 = Math.max(px0, Math.min(d.x0,d.x1)), x1 = Math.min(px1, Math.max(d.x0,d.x1));
+  if(x1-x0 < 8) return drawChartOverlay();
+  const f0 = G.hzAt(x0), f1 = G.hzAt(x1);
+  if(f1 < f0*1.03) return drawChartOverlay();
+  let d0 = null, d1 = null;
+  if(Math.abs(d.y1-d.y0) >= 12){
+    d1 = G.dbAt(Math.max(py0, Math.min(d.y0,d.y1)));
+    d0 = G.dbAt(Math.min(py1, Math.max(d.y0,d.y1)));
+    if(d1-d0 < 3){ d0 = null; d1 = null; }
+  }
+  state.chartView = { mode:"custom", f0, f1, d0, d1 };
+  drawChart();
+}
+
+function setChartHeight(h, save){
+  state.chartH = h===null ? null : Math.round(Math.max(CHART_MIN_H, Math.min(CHART_MAX_H, h)));
+  if(save) store.set("spf.chartH", state.chartH===null ? "" : String(state.chartH));
+  drawChart();
 }
 
 /* ---------------------------- 控件 ---------------------------- */
@@ -853,10 +966,63 @@ function setup(){
     select(b.dataset.src);
   });
 
+  // 长时间频谱：悬停读数、拖动框选放大、双击复位
   const co = $("chartOverlay");
   const chartLocal = e => { const r = co.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; };
-  co.addEventListener("pointermove", e => { state.chartHover = chartLocal(e); drawChartOverlay(); });
-  co.addEventListener("pointerleave", () => { state.chartHover = null; drawChartOverlay(); });
+  co.addEventListener("pointerdown", e => {
+    const G = state.chartGeom;
+    if(!state.file || !G || e.button!==0) return;
+    const p = chartLocal(e);
+    if(p.x<G.L || p.x>G.cssW-G.R || p.y<G.T || p.y>G.cssH-G.B) return;
+    state.chartDrag = { x0:p.x, y0:p.y, x1:p.x, y1:p.y };
+    co.setPointerCapture(e.pointerId);
+  });
+  co.addEventListener("pointermove", e => {
+    const p = chartLocal(e);
+    state.chartHover = p;
+    if(state.chartDrag){ state.chartDrag.x1 = p.x; state.chartDrag.y1 = p.y; }
+    drawChartOverlay();
+  });
+  co.addEventListener("pointerup", finishChartDrag);
+  co.addEventListener("pointercancel", () => { state.chartDrag = null; drawChartOverlay(); });
+  co.addEventListener("pointerleave", () => { if(!state.chartDrag){ state.chartHover = null; drawChartOverlay(); } });
+  co.addEventListener("dblclick", () => { state.chartView = { mode:"full" }; drawChart(); });
+  $("zoomSeg").addEventListener("click", e => {
+    const b = e.target.closest("button[data-v]");
+    if(!b) return;
+    state.chartView = { mode:b.dataset.v };
+    drawChart();
+  });
+
+  // 拖动图下方的手柄调整高度（触屏也能用）；双击恢复自动高度；键盘上下键微调
+  const grip = $("chartGrip");
+  let gripStart = null;
+  grip.addEventListener("pointerdown", e => {
+    if(!state.chartGeom) return;
+    gripStart = { y:e.clientY, h:state.chartGeom.cssH };
+    grip.setPointerCapture(e.pointerId);
+    grip.classList.add("active");
+  });
+  grip.addEventListener("pointermove", e => {
+    if(!gripStart) return;
+    const h = gripStart.h + e.clientY - gripStart.y;
+    if(state.gripFrame) return;
+    state.gripFrame = requestAnimationFrame(() => { state.gripFrame = 0; setChartHeight(h, false); });
+  });
+  const endGrip = () => {
+    if(!gripStart) return;
+    gripStart = null;
+    grip.classList.remove("active");
+    setChartHeight(state.chartGeom.cssH, true);
+  };
+  grip.addEventListener("pointerup", endGrip);
+  grip.addEventListener("pointercancel", endGrip);
+  grip.addEventListener("dblclick", () => setChartHeight(null, true));
+  grip.addEventListener("keydown", e => {
+    if(e.key!=="ArrowUp" && e.key!=="ArrowDown") return;
+    e.preventDefault();
+    setChartHeight(state.chartGeom.cssH + (e.key==="ArrowDown" ? 20 : -20), true);
+  });
   $("copyBtn").addEventListener("click", async () => {
     const cmd = $("installCmd").textContent;
     try{

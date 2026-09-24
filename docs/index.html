@@ -209,7 +209,11 @@
              border-radius:999px; padding:6px 13px; font-size:12.5px; transition:color .15s, border-color .15s, background .15s}
   .btn-ghost:hover{color:var(--fg); border-color:var(--hair-3); background:var(--surface-2)}
   .hint{margin:0; font-size:12.5px; color:var(--fg-3); flex:1 1 260px; text-align:right}
-  .legend{display:flex; flex-wrap:wrap; gap:8px 22px; align-items:center; margin-top:14px; font-size:12.5px; color:var(--fg-2)}
+  .chart-tools{display:flex; flex-wrap:wrap; align-items:center; gap:10px 20px}
+  .grip{display:flex; justify-content:center; align-items:center; height:16px; margin-top:4px; cursor:ns-resize; touch-action:none; border-radius:6px}
+  .grip span{width:48px; height:4px; border-radius:2px; background:var(--hair-3); transition:background .15s, width .15s}
+  .grip:hover span,.grip.active span,.grip:focus-visible span{background:var(--fg-3); width:64px}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 22px; align-items:center; margin-top:8px; font-size:12.5px; color:var(--fg-2)}
   .legend i{display:inline-block; width:18px; height:2px; border-radius:2px; vertical-align:middle; margin-right:9px}
   #legendThis{font:12px var(--mono)}
 
@@ -431,12 +435,21 @@
     <div class="card" id="chartCard">
       <div class="card-head">
         <h3 data-i18n="chart.title">Long-term spectrum</h3>
-        <label class="check" id="refCtl"><input type="checkbox" id="showRef" checked> <span data-i18n="chart.ref">Overlay a genuine FLAC</span></label>
+        <div class="chart-tools">
+          <div class="ctl" id="zoomCtl"><span data-i18n="chart.view">View</span>
+            <div class="seg" id="zoomSeg">
+              <button type="button" data-v="full" data-i18n="chart.full">Full range</button>
+              <button type="button" data-v="cutoff" data-i18n="chart.nearCut">Near the cutoff</button>
+            </div>
+          </div>
+          <label class="check" id="refCtl"><input type="checkbox" id="showRef" checked> <span data-i18n="chart.ref">Overlay a genuine FLAC</span></label>
+        </div>
       </div>
       <div class="frame" id="chartWrap">
         <canvas id="chart"></canvas>
         <canvas id="chartOverlay"></canvas>
       </div>
+      <div class="grip" id="chartGrip" role="separator" aria-orientation="horizontal" tabindex="0"><span></span></div>
       <div class="legend">
         <span><i style="background:var(--ember)"></i><span id="legendThis"></span></span>
         <span id="legendRef" hidden><i style="background:var(--mint)"></i><span data-i18n="chart.refLabel">genuine FLAC, for reference</span></span>
