@@ -4,43 +4,60 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Is it really lossless? — spectral-forensics</title>
-<meta name="description" content="Drop a FLAC or WAV and find out whether it was ever an mp3. Runs entirely in your browser; nothing is uploaded.">
+<meta name="description" content="Drop a FLAC or WAV and find out whether it was ever an mp3, and look at its spectrogram — STFT or reassigned. Runs entirely in your browser; nothing is uploaded.">
+<meta name="color-scheme" content="dark">
 <style>
   :root{
-    --bg:#05070d; --panel:#0b0f1a; --line:#161b2b;
+    --bg:#05070d; --panel:#0b0f1a; --panel2:#101627; --line:#161b2b; --line2:#232b42;
     --fg:#f0f2f8; --dim:#8b93a7; --faint:#5a6175;
     --ember:#f2813c; --gold:#ffe6a7; --rose:#b83355; --violet:#c264a8; --mint:#3fbfa0;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
     box-sizing:border-box;
     padding-top:env(safe-area-inset-top,0px);
     padding-bottom:env(safe-area-inset-bottom,0px);
   }
   *,*::before,*::after{box-sizing:inherit}
+  [hidden]{display:none!important}
   body{
     margin:0; background:var(--bg); color:var(--fg);
-    font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",Roboto,"Helvetica Neue",Arial,sans-serif;
     -webkit-font-smoothing:antialiased;
   }
-  .wrap{max-width:780px; margin:0 auto; padding:48px 20px 80px}
-  h1{font-size:28px; line-height:1.25; margin:0 0 10px; letter-spacing:-.02em}
-  .lede{color:var(--dim); margin:0 0 6px}
-  .privacy{color:var(--mint); font-size:13px; margin:0 0 28px}
-  code,kbd{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.92em}
+  .wrap{max-width:980px; margin:0 auto; padding:40px 16px 80px}
+  header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
+  h1{font-size:30px; line-height:1.25; margin:0 0 10px; letter-spacing:-.02em}
+  .lede{color:var(--dim); margin:0 0 6px; max-width:760px}
+  .privacy{color:var(--mint); font-size:13px; margin:0 0 26px}
+  code,kbd{font-family:var(--mono); font-size:.92em}
+  a{color:var(--ember)}
+
+  button{font:inherit; color:inherit; cursor:pointer}
+  .ghost{background:none; border:1px solid var(--line2); border-radius:999px; padding:4px 12px;
+         font-size:13px; color:var(--dim); white-space:nowrap}
+  .ghost:hover{color:var(--fg); border-color:var(--dim)}
+  button:focus-visible,#drop:focus-visible,input:focus-visible{outline:2px solid var(--ember); outline-offset:2px}
 
   #drop{
     border:1px dashed #27304a; border-radius:14px; background:var(--panel);
-    padding:34px 20px; text-align:center; cursor:pointer;
+    padding:30px 20px; text-align:center; cursor:pointer;
     transition:border-color .15s, background .15s;
   }
-  #drop:hover,#drop.hot{border-color:var(--ember); background:#101627}
+  #drop:hover,#drop.hot{border-color:var(--ember); background:var(--panel2)}
   #drop h2{margin:0 0 6px; font-size:16px; font-weight:600}
   #drop p{margin:0; color:var(--faint); font-size:13px}
   input[type=file]{display:none}
 
-  #status{margin-top:18px; color:var(--dim); font-size:14px; min-height:20px}
+  .samples{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; font-size:13px; color:var(--faint)}
+  .samples button{background:var(--panel); border:1px solid var(--line2); border-radius:999px;
+                  padding:5px 13px; font-size:13px; color:var(--dim)}
+  .samples button:hover{color:var(--fg); border-color:var(--ember)}
+
+  #status{margin-top:16px; color:var(--dim); font-size:14px; min-height:22px}
   #status.err{color:var(--rose)}
 
-  #result{display:none; margin-top:26px}
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:22px}
+  #result{margin-top:22px; display:grid; gap:18px}
+  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; min-width:0}
+  .card h3{margin:0 0 12px; font-size:15px; font-weight:600}
   .verdict{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:4px}
   .badge{font-size:22px; font-weight:700; letter-spacing:-.01em}
   .badge.clean{color:var(--mint)} .badge.likely{color:var(--gold)}
@@ -48,376 +65,190 @@
   .fname{color:var(--faint); font-size:13px; word-break:break-all}
   .headline{color:var(--dim); margin:2px 0 16px}
   .stats{display:flex; gap:26px; flex-wrap:wrap; margin-bottom:16px}
-  .stat b{display:block; font-size:19px; font-weight:600; color:var(--fg)}
+  .stat b{display:block; font-size:19px; font-weight:600; color:var(--fg); font-variant-numeric:tabular-nums}
   .stat span{font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em}
+  :lang(ja) .stat span{text-transform:none; letter-spacing:0}
   ul.notes{margin:0; padding-left:18px; color:var(--dim); font-size:13.5px}
   ul.notes li{margin:4px 0}
+  .synth{color:var(--dim); font-size:14px; margin:0}
 
-  canvas{width:100%; height:auto; display:block; margin-top:22px;
-         border:1px solid var(--line); border-radius:12px; background:var(--bg)}
+  /* ---- spectrogram ---- */
+  .spec-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+  .spec-head h3{margin:0}
+  .res{font:12px var(--mono); color:var(--faint)}
+  .toolbar{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin-bottom:14px}
+  .ctl{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--faint)}
+  .ctl > span:first-child{text-transform:uppercase; letter-spacing:.06em}
+  :lang(ja) .ctl > span:first-child{text-transform:none; letter-spacing:0}
+  .seg{display:inline-flex; border:1px solid var(--line2); border-radius:8px; overflow:hidden}
+  .seg button{background:none; border:0; padding:4px 10px; font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums}
+  .seg button + button{border-left:1px solid var(--line2)}
+  .seg button:hover{color:var(--fg)}
+  .seg button[aria-pressed=true]{background:#1a2238; color:var(--fg)}
+  .swatches{display:inline-flex; gap:6px}
+  .swatches button{width:30px; height:16px; border-radius:4px; border:1px solid var(--line2); padding:0}
+  .swatches button[aria-pressed=true]{outline:2px solid var(--fg); outline-offset:1px}
+  input[type=range]{width:96px; accent-color:var(--ember)}
+  .ctl output{font:12px var(--mono); color:var(--dim); min-width:44px}
+  label.check{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--dim); cursor:pointer}
+  label.check input{accent-color:var(--rose)}
 
-  .how{margin-top:44px; border-top:1px solid var(--line); padding-top:28px}
-  .how h3{font-size:15px; margin:0 0 10px}
+  .spec-wrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#03050a}
+  .spec-wrap canvas{display:block; width:100%}
+  #specOverlay{position:absolute; inset:0; height:100%; cursor:crosshair; touch-action:pan-y}
+  #specBusy{position:absolute; right:10px; top:8px; font:12px var(--mono); color:var(--gold);
+            background:rgba(5,7,13,.8); padding:3px 8px; border-radius:6px; pointer-events:none}
+  .spec-foot{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px}
+  .transport{display:flex; align-items:center; gap:10px}
+  #playBtn{min-width:86px; background:var(--ember); color:#1a0b02; border:0; border-radius:8px; padding:5px 14px; font-weight:600; font-size:13px}
+  #playBtn:hover{filter:brightness(1.1)}
+  #clock{font:12px var(--mono); color:var(--dim); font-variant-numeric:tabular-nums}
+  .hint{font-size:12.5px; color:var(--faint); margin:0; flex:1 1 280px}
+
+  #chart{width:100%; display:block; border:1px solid var(--line); border-radius:10px; background:var(--bg)}
+
+  .how{margin-top:46px; border-top:1px solid var(--line); padding-top:28px;
+       display:grid; grid-template-columns:1fr 1fr; gap:10px 40px}
+  .how section h3{font-size:15px; margin:0 0 10px}
   .how p,.how li{color:var(--dim); font-size:14px}
-  .how ol{padding-left:20px}
+  .how ol{padding-left:20px; margin-top:0}
   .caveat{border-left:2px solid var(--ember); padding-left:14px; color:var(--dim); font-size:13.5px}
-  a{color:var(--ember)}
-  footer{margin-top:40px; color:var(--faint); font-size:13px}
+  footer{margin-top:36px; color:var(--faint); font-size:13px}
+
+  @media (max-width:720px){
+    .wrap{padding-top:28px}
+    h1{font-size:25px}
+    .how{grid-template-columns:1fr}
+    .card{padding:16px}
+    .toolbar{gap:10px 14px}
+  }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <h1>Is it really lossless?</h1>
-  <p class="lede">Drop a FLAC, WAV or ALAC file. If it was ever an mp3, the encoder left a cliff in its spectrum — and the cliff survives conversion back to a lossless container.</p>
-  <p class="privacy">Everything runs in your browser. The file is never uploaded anywhere.</p>
+  <header>
+    <h1 data-i18n="title">Is it really lossless?</h1>
+    <button class="ghost" id="langBtn" type="button">日本語</button>
+  </header>
+  <p class="lede" data-i18n="lede">Drop a FLAC, WAV or ALAC file. If it was ever an mp3, the encoder left a cliff in its spectrum — and the cliff survives conversion back to a lossless container.</p>
+  <p class="privacy" data-i18n="privacy">Everything runs in your browser. The file is never uploaded anywhere.</p>
 
   <div id="drop" tabindex="0" role="button" aria-label="Choose an audio file">
-    <h2>Drop an audio file here</h2>
-    <p>or click to choose — flac, wav, m4a, mp3, ogg</p>
+    <h2 data-i18n="drop.title">Drop an audio file here</h2>
+    <p data-i18n="drop.sub">or click to choose — flac, wav, m4a, mp3, ogg</p>
   </div>
   <input type="file" id="file" accept="audio/*,.flac,.wav,.m4a,.aif,.aiff,.mp3,.ogg">
 
-  <div id="status"></div>
+  <div class="samples">
+    <span data-i18n="samples.label">No file handy? Try one:</span>
+    <button type="button" data-sample="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
+    <button type="button" data-sample="mp3" data-i18n="sample.mp3">128 kbps mp3, back as FLAC</button>
+    <button type="button" data-sample="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
+  </div>
 
-  <div id="result">
-    <div class="card">
+  <div id="status" role="status" aria-live="polite"></div>
+
+  <div id="result" hidden>
+    <div class="card" id="verdictCard">
       <div class="verdict">
         <span class="badge" id="badge"></span>
         <span class="fname" id="fname"></span>
       </div>
       <p class="headline" id="headline"></p>
       <div class="stats">
-        <div class="stat"><b id="s-cut">—</b><span>cutoff</span></div>
-        <div class="stat"><b id="s-steep">—</b><span>falloff in next 1 kHz</span></div>
-        <div class="stat"><b id="s-stereo">—</b><span>side signal collapse</span></div>
-        <div class="stat"><b id="s-dur">—</b><span>analysed</span></div>
+        <div class="stat"><b id="s-cut">—</b><span data-i18n="stat.cutoff">cutoff</span></div>
+        <div class="stat"><b id="s-steep">—</b><span data-i18n="stat.steep">falloff in next 1 kHz</span></div>
+        <div class="stat"><b id="s-stereo">—</b><span data-i18n="stat.stereo">side signal collapse</span></div>
+        <div class="stat"><b id="s-dur">—</b><span data-i18n="stat.dur">analysed</span></div>
       </div>
       <ul class="notes" id="notes"></ul>
     </div>
-    <canvas id="chart" width="1480" height="640"></canvas>
+
+    <div class="card" id="synthCard" hidden>
+      <p class="synth" data-i18n="spec.synth"></p>
+    </div>
+
+    <div class="card" id="specCard">
+      <div class="spec-head">
+        <h3 data-i18n="spec.title">Spectrogram</h3>
+        <span class="res" id="resLabel"></span>
+      </div>
+      <div class="toolbar">
+        <div class="ctl"><span data-i18n="spec.mode">Method</span>
+          <div class="seg" id="modeSeg">
+            <button type="button" data-v="stft" data-i18n="spec.stft">STFT</button>
+            <button type="button" data-v="reassigned" data-i18n="spec.reassigned">Reassigned</button>
+          </div>
+        </div>
+        <div class="ctl"><span data-i18n="spec.window">Window</span>
+          <div class="seg" id="nfftSeg">
+            <button type="button" data-v="512">512</button>
+            <button type="button" data-v="2048">2048</button>
+            <button type="button" data-v="8192">8192</button>
+          </div>
+        </div>
+        <div class="ctl"><span data-i18n="spec.axis">Frequency</span>
+          <div class="seg" id="axisSeg">
+            <button type="button" data-v="log" data-i18n="spec.log">Log</button>
+            <button type="button" data-v="linear" data-i18n="spec.linear">Linear</button>
+          </div>
+        </div>
+        <div class="ctl"><span data-i18n="spec.range">Range</span>
+          <input type="range" id="range" min="40" max="120" step="5" value="80" aria-label="dB">
+          <output id="rangeVal" for="range">80 dB</output>
+        </div>
+        <div class="ctl"><span data-i18n="spec.palette">Colours</span>
+          <div class="swatches" id="paletteSeg"></div>
+        </div>
+        <label class="check"><input type="checkbox" id="showCutoff" checked> <span data-i18n="spec.cutoff">Mark the cutoff</span></label>
+      </div>
+
+      <div class="spec-wrap" id="specWrap">
+        <canvas id="spec"></canvas>
+        <canvas id="specOverlay"></canvas>
+        <div id="specBusy" hidden></div>
+      </div>
+
+      <div class="spec-foot">
+        <div class="transport">
+          <button type="button" id="playBtn">Play</button>
+          <span id="clock">0:00.0 / 0:00.0</span>
+          <button type="button" class="ghost" id="pngBtn" data-i18n="spec.png">Save PNG</button>
+        </div>
+        <p class="hint" data-i18n="spec.hint">Hover to read time, frequency and level. Click to play from there; space bar plays and pauses.</p>
+      </div>
+    </div>
+
+    <div class="card" id="chartCard">
+      <h3 data-i18n="chart.title">Long-term spectrum</h3>
+      <canvas id="chart"></canvas>
+    </div>
   </div>
 
   <div class="how">
-    <h3>How it decides</h3>
-    <ol>
-      <li><b>Cutoff</b> — the highest frequency still carrying real energy, taken from a 95th-percentile long-term spectrum. A percentile rather than a mean, because quiet passages drag a mean into the noise floor.</li>
-      <li><b>Steepness</b> — how much further the level falls within 1 kHz above that cutoff. An encoder's brick wall drops 20 dB or more; natural rolloff does not.</li>
-      <li><b>Intensity stereo</b> — lossy codecs collapse L/R into mono-plus-weight at high frequencies, so the side signal (L−R)/2 vanishes above some frequency. Independent of the lowpass.</li>
-    </ol>
-    <p class="caveat">Read a <b>clean</b> verdict as “no lowpass evidence”, not as proof of provenance. Encoders that apply no hard lowpass — ffmpeg's native AAC at higher bitrates, Opus — pass this test. And because browsers resample on decode, anything above 21.6&nbsp;kHz is treated as full-band.</p>
+    <section>
+      <h3 data-i18n="how.title">How it decides</h3>
+      <ol>
+        <li data-i18n-html="how.cutoff"></li>
+        <li data-i18n-html="how.steep"></li>
+        <li data-i18n-html="how.stereo"></li>
+      </ol>
+      <p class="caveat" data-i18n-html="how.caveat"></p>
+    </section>
+    <section>
+      <h3 data-i18n="read.title">Reading the spectrogram</h3>
+      <p data-i18n-html="read.stft"></p>
+      <p data-i18n-html="read.reassigned"></p>
+      <p data-i18n-html="read.cliff"></p>
+    </section>
   </div>
 
-  <footer>
-    Same detection as <code>spf audit</code> in
-    <a href="https://github.com/shianjeng/spectral-forensics">spectral-forensics</a>,
-    ported to JavaScript and checked against the Python implementation on identical signals.
-    The command-line version scans whole libraries and reports implied bitrates.
-  </footer>
+  <footer data-i18n-html="footer"></footer>
 </div>
 
-<script>
-/* ---------- 核心算法：与 spectral_forensics/audit.py 一一对应 ---------- */
-
-function fftRadix2(re, im) {
-  const n = re.length;
-  for (let i = 1, j = 0; i < n; i++) {
-    let bit = n >> 1;
-    for (; j & bit; bit >>= 1) j ^= bit;
-    j ^= bit;
-    if (i < j) { const a=re[i];re[i]=re[j];re[j]=a; const b=im[i];im[i]=im[j];im[j]=b; }
-  }
-  for (let len = 2; len <= n; len <<= 1) {
-    const ang = (-2*Math.PI)/len, wr = Math.cos(ang), wi = Math.sin(ang);
-    for (let i = 0; i < n; i += len) {
-      let cr = 1, ci = 0;
-      for (let k = 0; k < len/2; k++) {
-        const ur = re[i+k], ui = im[i+k];
-        const vr = re[i+k+len/2]*cr - im[i+k+len/2]*ci;
-        const vi = re[i+k+len/2]*ci + im[i+k+len/2]*cr;
-        re[i+k] = ur+vr; im[i+k] = ui+vi;
-        re[i+k+len/2] = ur-vr; im[i+k+len/2] = ui-vi;
-        const ncr = cr*wr - ci*wi; ci = cr*wi + ci*wr; cr = ncr;
-      }
-    }
-  }
-}
-
-function hann(n){ const w=new Float64Array(n);
-  for(let i=0;i<n;i++) w[i]=0.5-0.5*Math.cos((2*Math.PI*i)/n); return w; }
-
-function longTermSpectrum(y, sr, nFft=8192, percentile=95){
-  const hop=nFft/2, w=hann(nFft), nBins=nFft/2+1;
-  const nFrames=Math.max(1, Math.floor((y.length-nFft)/hop)+1);
-  const cols=Array.from({length:nBins},()=>new Float64Array(nFrames));
-  const re=new Float64Array(nFft), im=new Float64Array(nFft);
-  for(let f=0;f<nFrames;f++){
-    const off=f*hop;
-    for(let i=0;i<nFft;i++){ re[i]=(y[off+i]||0)*w[i]; im[i]=0; }
-    fftRadix2(re,im);
-    for(let k=0;k<nBins;k++) cols[k][f]=re[k]*re[k]+im[k]*im[k];
-  }
-  const db=new Float64Array(nBins);
-  for(let k=0;k<nBins;k++){
-    const s=Array.from(cols[k]).sort((a,b)=>a-b);
-    const pos=(percentile/100)*(s.length-1), lo=Math.floor(pos), hi=Math.ceil(pos);
-    db[k]=10*Math.log10(s[lo]+(s[hi]-s[lo])*(pos-lo)+1e-20);
-  }
-  const freqs=new Float64Array(nBins);
-  for(let k=0;k<nBins;k++) freqs[k]=(k*sr)/nFft;
-  return {freqs, db};
-}
-
-function smooth(x,width=9){
-  const out=new Float64Array(x.length), half=(width-1)/2;
-  for(let i=0;i<x.length;i++){
-    let sum=0;
-    for(let j=-half;j<=half;j++){ const k=i+j; sum += (k>=0&&k<x.length)?x[k]:0; }
-    out[i]=sum/width;
-  }
-  return out;
-}
-
-function findCutoff(freqs, dbRaw, dropDb=50){
-  const db=smooth(dbRaw);
-  let ref=-Infinity;
-  for(let i=0;i<freqs.length;i++) if(freqs[i]>=200&&freqs[i]<=4000) ref=Math.max(ref,db[i]);
-  if(!isFinite(ref)) return {cutoffHz:null, steepness:null, rel:null};
-  const rel=Array.from(db,v=>v-ref);
-  let idx=-1;
-  for(let i=rel.length-1;i>=0;i--) if(rel[i]>-dropDb){ idx=i; break; }
-  if(idx<0) return {cutoffHz:null, steepness:null, rel};
-  const fc=freqs[idx];
-  if(idx>=freqs.length-1) return {cutoffHz:fc, steepness:null, rel};
-  let j=freqs.length-1;
-  for(let i=0;i<freqs.length;i++) if(freqs[i]>=fc+1000){ j=i; break; }
-  return {cutoffHz:fc, steepness:rel[idx]-rel[j], rel};
-}
-
-/* 强度立体声：高频处边信号 (L−R)/2 相对中信号塌陷的起点。 */
-function intensityStereoCutoff(L, R, sr){
-  let peak=0;
-  const n=Math.min(L.length,R.length);
-  const mid=new Float32Array(n), side=new Float32Array(n);
-  for(let i=0;i<n;i++){ mid[i]=(L[i]+R[i])/2; side[i]=(L[i]-R[i])/2; peak=Math.max(peak,Math.abs(side[i])); }
-  if(peak<1e-5) return null;                       // 本来就是假立体声
-  const M=longTermSpectrum(mid,sr,4096,50), S=longTermSpectrum(side,sr,4096,50);
-  const ratio=smooth(Float64Array.from(S.db,(v,i)=>v-M.db[i]),7);
-  let start=0;
-  for(let i=0;i<M.freqs.length;i++) if(M.freqs[i]>=4000){ start=i; break; }
-  for(let i=start;i<ratio.length;i++){
-    let all=true;
-    for(let k=i;k<ratio.length;k++) if(ratio[k]>=-40){ all=false; break; }
-    if(all) return M.freqs[i];
-  }
-  return null;
-}
-
-const CUTOFF_TABLE=[[11,"mp3 ~64 kbps / AAC ~48 kbps"],[13,"mp3 ~96 kbps"],
-  [15,"mp3 ~112 kbps / AAC ~96 kbps"],[16,"mp3 ~128 kbps / AAC ~128 kbps"],
-  [17.5,"mp3 ~160 kbps"],[19,"mp3 ~192 kbps"],[20,"mp3 ~256–320 kbps"]];
-
-function guessSource(khz){
-  let best=Infinity, label="an unknown lossy encoder";
-  for(const [f,name] of CUTOFF_TABLE){ const d=Math.abs(khz-f); if(d<best){best=d;label=name;} }
-  return best<=1.2 ? label : "an unknown lossy encoder";
-}
-
-/* 浏览器 decodeAudioData 会重采样，真正的 44.1 kHz 无损在 48 kHz 下
-   会在 22.05 kHz 露出一道假悬崖——那是源素材的奈奎斯特，不是编码器。 */
-const FULL_BAND_KHZ = 21.6;
-
-/* 19.8–21.6 kHz 是一条无法靠低通本身分辨的模糊带：母带处理和一部分 ADC
-   抗混叠滤波器就切在这里，而 LAME 320 kbps 的截止也落在 20 kHz 附近。
-   落在这一带时不给"编码器常用档位"的加分，且没有立体声佐证时判定封顶在 likely。 */
-const AMBIGUOUS_LO_KHZ = 19.8;
-
-function verdict(cut, stereoHz, isLossless){
-  const notes=[]; let score=0;
-  if(cut.cutoffHz!==null){
-    const khz=cut.cutoffHz/1000;
-    if(khz < FULL_BAND_KHZ){
-      score+=0.45;
-      if(cut.steepness!==null && cut.steepness>=20){
-        score+=0.30;
-        notes.push(`Level falls a further ${cut.steepness.toFixed(0)} dB within 1 kHz above the cutoff — that is a brick wall, not a rolloff.`);
-      } else if(cut.steepness!==null){
-        notes.push(`Only ${cut.steepness.toFixed(0)} dB of further falloff above the cutoff — this looks like natural rolloff.`);
-      }
-      const ambiguous = khz >= AMBIGUOUS_LO_KHZ;
-      if(!ambiguous && Math.min(...CUTOFF_TABLE.map(([f])=>Math.abs(khz-f)))<=0.6){
-        score+=0.15;
-        notes.push("The cutoff sits on a frequency encoders commonly use.");
-      }
-    } else {
-      notes.push("Energy extends to the top of the analysed band — no lowpass found.");
-    }
-  }
-  if(stereoHz!==null){
-    score+=0.25;
-    notes.push(`Above ${(stereoHz/1000).toFixed(1)} kHz the side signal collapses — the signature of intensity stereo.`);
-  }
-  score=Math.min(score,1);
-  let tier;
-  if(!isLossless) tier="lossy";
-  else if(score>=0.70) tier="suspect";
-  else if(score>=0.45) tier="likely";
-  else tier="clean";
-
-  // 模糊带封顶：这一带的砖墙可能来自母带处理而非编码器。
-  const khz = cut.cutoffHz===null ? null : cut.cutoffHz/1000;
-  if(tier==="suspect" && stereoHz===null && khz!==null
-     && khz>=AMBIGUOUS_LO_KHZ && khz<FULL_BAND_KHZ){
-    tier="likely";
-    notes.push(`A brick wall between ${AMBIGUOUS_LO_KHZ} and ${FULL_BAND_KHZ} kHz can also come from mastering or an ADC's anti-aliasing filter. With no independent corroboration this is not called suspect.`);
-  }
-  return {tier, score, notes};
-}
-
-/* ---------------------------- 绘图 ---------------------------- */
-
-function drawChart(freqs, rel, cutoffHz, sr){
-  const c=document.getElementById("chart"), g=c.getContext("2d");
-  const W=c.width, H=c.height, L=78, R=26, T=26, B=56;
-  const fMin=40, fMax=sr/2, dbMin=-100, dbMax=6;
-  const css=getComputedStyle(document.documentElement);
-  const col=n=>css.getPropertyValue(n).trim();
-
-  g.clearRect(0,0,W,H);
-  const X=f=>L+(Math.log10(Math.max(f,fMin))-Math.log10(fMin))/(Math.log10(fMax)-Math.log10(fMin))*(W-L-R);
-  const Y=d=>T+(dbMax-d)/(dbMax-dbMin)*(H-T-B);
-
-  g.strokeStyle=col("--line"); g.lineWidth=1.5; g.font="20px ui-monospace,monospace";
-  g.fillStyle=col("--faint"); g.textAlign="center";
-  for(const f of [50,100,200,500,1000,2000,5000,10000,20000]){
-    if(f<fMin||f>fMax) continue;
-    g.beginPath(); g.moveTo(X(f),T); g.lineTo(X(f),H-B); g.stroke();
-    g.fillText(f>=1000?(f/1000)+"k":String(f), X(f), H-B+30);
-  }
-  g.textAlign="right";
-  for(let d=0; d>=dbMin; d-=20){
-    g.beginPath(); g.moveTo(L,Y(d)); g.lineTo(W-R,Y(d)); g.stroke();
-    g.fillText(d+" dB", L-12, Y(d)+7);
-  }
-
-  if(cutoffHz!==null && cutoffHz/1000 < FULL_BAND_KHZ){
-    g.strokeStyle=col("--rose"); g.lineWidth=2.5; g.setLineDash([9,7]);
-    g.beginPath(); g.moveTo(X(cutoffHz),T); g.lineTo(X(cutoffHz),H-B); g.stroke();
-    g.setLineDash([]);
-    g.fillStyle=col("--rose"); g.textAlign="right";
-    g.fillText((cutoffHz/1000).toFixed(1)+" kHz", X(cutoffHz)-12, T+26);
-  }
-
-  g.strokeStyle=col("--ember"); g.lineWidth=2.5; g.beginPath();
-  let started=false;
-  for(let i=1;i<freqs.length;i++){
-    if(freqs[i]<fMin) continue;
-    const x=X(freqs[i]), y=Y(Math.max(rel[i],dbMin));
-    started ? g.lineTo(x,y) : (g.moveTo(x,y), started=true);
-  }
-  g.stroke();
-
-  g.fillStyle=col("--faint"); g.textAlign="left"; g.font="19px ui-sans-serif,sans-serif";
-  g.fillText("Long-term spectrum, relative to the 200–4000 Hz peak", L, H-14);
-}
-
-/* ---------------------------- 交互 ---------------------------- */
-
-const MAX_SECONDS = 120;
-const LOSSLESS = /\.(flac|wav|aiff?|alac|wv|ape)$/i;
-
-const drop=document.getElementById("drop"), picker=document.getElementById("file");
-const statusEl=document.getElementById("status"), resultEl=document.getElementById("result");
-
-drop.addEventListener("click",()=>picker.click());
-drop.addEventListener("keydown",e=>{ if(e.key==="Enter"||e.key===" "){e.preventDefault();picker.click();} });
-picker.addEventListener("change",()=>{ if(picker.files[0]) analyse(picker.files[0]); });
-["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev,e=>{
-  e.preventDefault(); drop.classList.add("hot"); }));
-["dragleave","drop"].forEach(ev=>drop.addEventListener(ev,e=>{
-  e.preventDefault(); drop.classList.remove("hot"); }));
-drop.addEventListener("drop",e=>{ const f=e.dataTransfer.files[0]; if(f) analyse(f); });
-
-function say(msg, isErr){
-  statusEl.textContent=msg;
-  statusEl.className=isErr?"err":"";
-}
-
-const HEADLINES={
-  clean:"No evidence of a lossy encoder.",
-  likely:"There is a lowpass, but nothing corroborates it.",
-  suspect:"This looks like it passed through a lossy encoder.",
-  lossy:"This is already a lossy file — here is what its spectrum supports.",
-};
-
-async function analyse(file){
-  resultEl.style.display="none";
-  say(`Decoding ${file.name} …`);
-  await new Promise(r=>setTimeout(r,20));
-
-  let buf;
-  try{
-    const bytes = await file.arrayBuffer();
-    const ctx = new (window.AudioContext||window.webkitAudioContext)();
-    buf = await ctx.decodeAudioData(bytes);
-    ctx.close();
-  }catch(err){
-    say("Your browser could not decode that file. FLAC, WAV and M4A usually work; some formats do not.", true);
-    return;
-  }
-
-  const sr = buf.sampleRate;
-  const n = Math.min(buf.length, Math.floor(MAX_SECONDS*sr));
-  if(n < 16384){ say("That clip is too short to analyse.", true); return; }
-
-  say("Analysing spectrum …");
-  await new Promise(r=>setTimeout(r,20));
-
-  const ch0 = buf.getChannelData(0).subarray(0,n);
-  let mono = ch0;
-  if(buf.numberOfChannels>1){
-    const ch1=buf.getChannelData(1).subarray(0,n);
-    mono=new Float32Array(n);
-    for(let i=0;i<n;i++) mono[i]=(ch0[i]+ch1[i])/2;
-  }
-
-  const {freqs, db} = longTermSpectrum(mono, sr);
-  const cut = findCutoff(freqs, db);
-  const stereoHz = buf.numberOfChannels>1
-    ? intensityStereoCutoff(ch0, buf.getChannelData(1).subarray(0,n), sr) : null;
-  const isLossless = LOSSLESS.test(file.name);
-  const v = verdict(cut, stereoHz, isLossless);
-
-  document.getElementById("badge").textContent =
-    {clean:"✓ clean", likely:"? likely", suspect:"⚠ suspect", lossy:"· lossy file"}[v.tier];
-  document.getElementById("badge").className = "badge "+v.tier;
-  document.getElementById("fname").textContent = file.name;
-  document.getElementById("headline").textContent = HEADLINES[v.tier];
-
-  const khz = cut.cutoffHz===null ? null : cut.cutoffHz/1000;
-  document.getElementById("s-cut").textContent =
-    khz===null ? "—" : (khz>=FULL_BAND_KHZ ? "full band" : khz.toFixed(1)+" kHz");
-  document.getElementById("s-steep").textContent =
-    cut.steepness===null ? "—" : "−"+cut.steepness.toFixed(0)+" dB";
-  document.getElementById("s-stereo").textContent =
-    stereoHz===null ? "none" : (stereoHz/1000).toFixed(1)+" kHz";
-  document.getElementById("s-dur").textContent = (n/sr).toFixed(0)+" s";
-
-  const notes=[...v.notes];
-  if(khz!==null && khz<FULL_BAND_KHZ && (v.tier==="suspect"||v.tier==="likely"||v.tier==="lossy"))
-    notes.push(`A cutoff there is consistent with ${guessSource(khz)}.`);
-  if(!isLossless)
-    notes.push("The file name says this is already a lossy format, so a cutoff is expected — it only matters if it sits far below the declared bitrate.");
-  notes.push(`Decoded at ${(sr/1000).toFixed(1)} kHz by your browser; the first ${(n/sr).toFixed(0)} seconds were analysed.`);
-
-  const ul=document.getElementById("notes");
-  ul.innerHTML="";
-  for(const t of notes){ const li=document.createElement("li"); li.textContent=t; ul.appendChild(li); }
-
-  drawChart(freqs, cut.rel, cut.cutoffHz, sr);
-  resultEl.style.display="block";
-  say("");
-}
-</script>
+<script src="analysis.js"></script>
+<script src="i18n.js"></script>
+<script src="app.js"></script>
 </body>
 </html>

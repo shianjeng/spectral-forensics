@@ -4,13 +4,16 @@
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.11%2B-blue.svg)](pyproject.toml)
 
+**English** · [日本語](https://github.com/shianjeng/spectral-forensics/blob/main/README.ja.md)
+
 **Is that FLAC actually a re-wrapped mp3?** Every lossy encoder throws away
 everything above a cutoff, and that cliff survives conversion back into a
 lossless container. This scans a whole library and tells you which files to
 look at — and it says out loud what it cannot catch.
 
 **[→ Try it in your browser](https://shianjeng.github.io/spectral-forensics/)**
-— drop a file in, nothing is uploaded.
+— drop a file in for the verdict and its spectrogram, STFT or reassigned.
+Nothing is uploaded.
 
 ![transcode cliffs](https://raw.githubusercontent.com/shianjeng/spectral-forensics/main/examples/audit_cliffs.png)
 
@@ -85,8 +88,25 @@ spf audit ~/Music --recursive --verbose
 [shianjeng.github.io/spectral-forensics](https://shianjeng.github.io/spectral-forensics/)
 runs the same cutoff, steepness and intensity-stereo tests in the browser
 using the Web Audio API. The file is decoded and analysed locally and never
-leaves the machine. `tests/test_web_parity.py` feeds identical signals to both
-implementations and asserts they land on the same FFT bin.
+leaves the machine.
+
+Below the verdict sits the spectrogram, where an mp3's lowpass is visible as a
+flat ceiling. It is STFT or reassigned (section 3), with 512 / 2048 / 8192-sample
+windows, a log or linear frequency axis, the four palettes, an adjustable dynamic
+range and the detected cutoff marked. Hover over it to read time, frequency and
+level. Click to play from that point. Three samples load with one click: a
+genuine FLAC, the same clip after a 128 kbps mp3 round trip, and a synthetic
+sweep with tones and clicks for comparing window lengths. Each has its own link,
+for example [`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3).
+The page is in English and Japanese.
+
+The JavaScript is held to the Python, not just modelled on it.
+`tests/test_web_parity.py` feeds identical signals to both, asserts they land
+on the same FFT bin and reach the same verdict on the bundled samples.
+`tests/test_web_spectrogram.py` checks the STFT bin for bin against
+`librosa.stft`, and each reassigned point against
+`librosa.reassigned_spectrogram`. The samples are rebuilt with
+`python examples/make_web_samples.py`.
 
 Porting it paid for itself immediately: the JavaScript version disagreed with
 Python on a 16 kHz brick wall, and **Python was the one that was wrong**.
@@ -345,6 +365,12 @@ spectral_forensics/
 ├── render.py      matrix → image        (no audio code)
 ├── video.py       ffmpeg pipe
 └── cli.py         argparse entry point
+
+docs/              the browser demo — static, served by GitHub Pages as is
+├── analysis.js    audit + STFT + reassignment, ported from the Python above
+├── app.js         the page
+├── i18n.js        English / Japanese strings
+└── samples/       built by examples/make_web_samples.py
 ```
 
 `transform.py` never imports matplotlib and `render.py` never imports
@@ -353,7 +379,7 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 58 passed
+pytest -q     # 67 passed
 ```
 
 CI runs the suite on Python 3.11 through 3.14 on every push, and again
@@ -366,8 +392,16 @@ lengths; a 1 kHz tone peaking within one FFT bin; reassignment measurably
 sharpening a chirp on an identical grid; synthetic brick-wall cutoffs at
 12/16/19 kHz recovered to within 500 Hz; a gentle 6 dB/oct rolloff *not*
 being flagged as an encoder cutoff; an exact STFT→ISTFT round trip; band
-rejection leaving neighbouring bands intact; and Griffin-Lim error decreasing
-monotonically with iteration count.
+rejection leaving neighbouring bands intact; Griffin-Lim error decreasing
+monotonically with iteration count; and the browser demo's JavaScript agreeing
+with the Python and with librosa, bin for bin.
+
+The browser tests run the JavaScript under Node and skip when Node is absent,
+which is convenient locally and dangerous in CI: a runner without Node would
+report green while testing nothing. CI therefore installs Node and sets
+`SPF_REQUIRE_NODE=1`, which turns that skip into a failure. It also
+`node --check`s every script in `docs/`, since the page has no build step to
+catch a syntax error first.
 
 There are also CLI smoke tests that execute every subcommand. They exist
 because `--help` passing proves nothing — argparse never invokes the handler,
