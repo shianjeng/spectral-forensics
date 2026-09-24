@@ -1,5 +1,6 @@
 /*
  * docs/index.html 的交互：读文件 / 示例 → 转码判定 + 时频图 + 长时间频谱，英日双语。
+ * 只有一个页面：打开时直接显示 mp3 示例，示例和用户的文件是同一排标签，切换不重新解码。
  * 算法都在 analysis.js（globalThis.SPF），这里只管界面。
  */
 (function () {
@@ -66,11 +67,13 @@ const state = {
     palette: PALETTES[store.get("spf.palette")] ? store.get("spf.palette") : "ember",
     showCutoff: true,
   },
-  rasters: new Map(),   // 已算好的时频图，按设置缓存
-  raster: null,         // 当前显示的
+  raster: null,         // 当前显示的时频图（各来源自己的缓存在 file.rasters 里）
   image: null,          // raster 上色后的离屏 canvas
   job: 0,
   hover: null,
+  showRef: store.get("spf.ref")!=="0",   // 长时间频谱上叠加真 FLAC 参考曲线
+  chartHover: null,
+  chartGeom: null,
 };
 
 let ctx = null;
@@ -87,31 +90,71 @@ const nextFrame = () => new Promise(r => setTimeout(r, 16));
 
 /* ---------------------------- 读入 ---------------------------- */
 
+// 每个来源（三个示例 + 用户的文件）只解码、分析一次，切换标签时直接复用
+const sources = new Map();   // key → 分析结果，各带一份时频图缓存
+const pending = new Map();   // key → 正在加载的 Promise
+let active = null;           // 正在显示的来源
+let selectToken = 0;         // 连续点击时只让最后一次生效
+
+const sourceName = key => key==="synth" ? "sweep-tones-clicks.wav" : SAMPLES[key].name;
+
+/** 读入一个示例。真 FLAC 也是长时间频谱的参考曲线，所以页面一打开就在后台读。 */
+function loadSource(key, report){
+  if(sources.has(key)) return Promise.resolve(sources.get(key));
+  if(pending.has(key)) return pending.get(key);
+  const job = (async () => {
+    let buf;
+    if(key==="synth") buf = synthBuffer();
+    else{
+      const res = await fetch(SAMPLES[key].url);
+      if(!res.ok) throw new Error(String(res.status));
+      buf = await audioCtx().decodeAudioData(await res.arrayBuffer());
+    }
+    const f = await prepare(buf, sourceName(key), key, key==="synth" || SAMPLES[key].lossless, report);
+    if(f) sources.set(key, f);
+    return f;
+  })();
+  pending.set(key, job);
+  job.finally(() => pending.delete(key)).catch(() => { /* 由调用方报告 */ });
+  return job;
+}
+
+async function select(key){
+  const token = ++selectToken;
+  markTabs(key);
+  if(!sources.has(key)) say(t("status.decoding", sourceName(key)));
+  let f;
+  try{
+    f = await loadSource(key, (msg, isErr) => { if(token===selectToken) say(msg, isErr); });
+  }catch(err){
+    if(token===selectToken){ say(t("status.sampleFail"), true); markTabs(active); }
+    return;
+  }
+  if(token!==selectToken) return;
+  if(f) show(key, f); else markTabs(active);
+}
+
 async function openFile(file){
+  const token = ++selectToken;
   say(t("status.decoding", file.name));
   await nextFrame();
   let buf;
   try{
     buf = await audioCtx().decodeAudioData(await file.arrayBuffer());
   }catch(err){
-    say(t("status.decodeFail"), true);
+    if(token===selectToken) say(t("status.decodeFail"), true);
     return;
   }
-  analyse(buf, file.name, "file", LOSSLESS.test(file.name));
-}
-
-async function openSample(key){
-  if(key==="synth"){ analyse(synthBuffer(), "sweep-tones-clicks.wav", "synth", true); return; }
-  const s = SAMPLES[key];
-  say(t("status.decoding", s.name));
-  try{
-    const res = await fetch(s.url);
-    if(!res.ok) throw new Error(res.status);
-    const buf = await audioCtx().decodeAudioData(await res.arrayBuffer());
-    analyse(buf, s.name, key, s.lossless);
-  }catch(err){
-    say(t("status.sampleFail"), true);
-  }
+  if(token!==selectToken) return;
+  const f = await prepare(buf, file.name, "file", LOSSLESS.test(file.name), say);
+  if(!f || token!==selectToken) return;
+  sources.set("file", f);
+  const tab = $("fileTab");
+  tab.textContent = file.name;
+  tab.title = file.name;
+  tab.hidden = false;
+  $("fileSep").hidden = false;
+  show("file", f);
 }
 
 /** 合成测试信号：对数扫频、带谐波的定常音、颤音、每 0.75 s 一个脉冲。 */
@@ -138,11 +181,11 @@ function synthBuffer(){
   return buf;
 }
 
-async function analyse(buf, name, kind, isLossless){
+/** 混成单声道并做转码判定（合成信号不判定）。只算数，不碰界面。 */
+async function prepare(buf, name, kind, isLossless, report=() => {}){
   const sr = buf.sampleRate;
   const n = Math.min(buf.length, Math.floor(MAX_SECONDS*sr));
-  if(n < 16384){ say(t("status.tooShort"), true); return; }
-  stopPlayback(true);
+  if(n < 16384){ report(t("status.tooShort"), true); return null; }
 
   const ch0 = buf.getChannelData(0).subarray(0,n);
   const ch1 = buf.numberOfChannels>1 ? buf.getChannelData(1).subarray(0,n) : null;
@@ -152,9 +195,9 @@ async function analyse(buf, name, kind, isLossless){
     for(let i=0;i<n;i++) mono[i] = (ch0[i]+ch1[i])/2;
   }
 
-  const f = { name, kind, buffer:buf, sr, n, mono, isLossless };
+  const f = { name, kind, buffer:buf, sr, n, mono, isLossless, rasters:new Map() };
   if(kind!=="synth"){
-    say(t("status.analysing"));
+    report(t("status.analysing"));
     await nextFrame();
     const { freqs, db } = S.longTermSpectrum(mono, sr);
     f.freqs = freqs;
@@ -162,22 +205,48 @@ async function analyse(buf, name, kind, isLossless){
     f.stereoHz = ch1 ? S.intensityStereoCutoff(ch0, ch1, sr) : null;
     f.v = S.verdict(f.cut, f.stereoHz, isLossless);
   }
+  return f;
+}
+
+function show(key, f){
+  stopPlayback(true);
+  active = key;
   state.file = f;
-  state.rasters.clear();
+  state.job++;                      // 丢弃上一个来源还没算完的时频图
   state.raster = null;
   state.image = null;
   state.hover = null;
+  state.chartHover = null;
+  $("specBusy").hidden = true;
 
-  $("verdictCard").hidden = kind==="synth";
-  $("chartCard").hidden = kind==="synth";
-  $("synthCard").hidden = kind!=="synth";
+  const synth = f.kind==="synth";
+  $("verdictCard").hidden = synth;
+  $("chartCard").hidden = synth;
+  $("synthCard").hidden = !synth;
   $("result").hidden = false;
   say("");
+  markTabs(key);
+  syncUrl(key);
   renderVerdict();
   drawChart();
   updateTransport();
   updateResLabel();
   computeSpectrogram();
+}
+
+function markTabs(key){
+  for(const b of $("sources").querySelectorAll("button[data-src]")) b.setAttribute("aria-pressed", String(b.dataset.src===key));
+}
+
+/** 地址栏跟着标签走：默认的 mp3 示例和本地文件不带参数，另外两个示例带 ?sample=，可以直接分享。 */
+function syncUrl(key){
+  let url;
+  try{ url = new URL(location.href); }catch(e){ return; }
+  if(key==="genuine" || key==="synth") url.searchParams.set("sample", key);
+  else url.searchParams.delete("sample");
+  const next = url.pathname + url.search + url.hash;
+  if(next===location.pathname + location.search + location.hash) return;
+  try{ history.replaceState(null, "", next); }catch(e){ /* file:// 下不允许 */ }
 }
 
 /* ---------------------------- 判定卡片 ---------------------------- */
@@ -229,8 +298,8 @@ async function computeSpectrogram(){
   const f = state.file;
   if(!f) return;
   const key = specKey();
-  if(state.rasters.has(key)){
-    state.raster = state.rasters.get(key);
+  if(f.rasters.has(key)){
+    state.raster = f.rasters.get(key);
     paintRaster(); drawSpectrogram(); drawOverlay();
     return;
   }
@@ -259,7 +328,7 @@ async function computeSpectrogram(){
   }
   if(job!==state.job) return;
   busy.hidden = true;
-  state.rasters.set(key, r.value);
+  f.rasters.set(key, r.value);
   state.raster = r.value;
   paintRaster(); drawSpectrogram(); drawOverlay();
 }
@@ -486,30 +555,72 @@ function togglePlay(){
 
 /* ---------------------------- 长时间频谱 ---------------------------- */
 
+/** 参考曲线：真 FLAC 示例。正在看的就是它时不画。 */
+function reference(){
+  if(!state.showRef || active==="genuine") return null;
+  const r = sources.get("genuine");
+  return r && r.cut && r.cut.rel ? r : null;
+}
+
+function chartGeometry(){
+  const f = state.file;
+  const dpr = Math.min(window.devicePixelRatio||1, 2);
+  const cssW = $("chartWrap").clientWidth || 900, cssH = Math.round(Math.max(220, Math.min(360, cssW*0.4)));
+  const L = 58, R = 14, T = 14, B = 44;
+  const fMin = 40, fMax = f.sr/2, dbMin = -100, dbMax = 6;
+  const a = Math.log10(fMin), b = Math.log10(fMax);
+  return {
+    dpr, cssW, cssH, L, R, T, B, fMin, fMax, dbMin,
+    X: hz => L+(Math.log10(Math.max(hz,fMin))-a)/(b-a)*(cssW-L-R),
+    hzAt: x => Math.pow(10, a+(x-L)/(cssW-L-R)*(b-a)),
+    Y: d => T+(dbMax-d)/(dbMax-dbMin)*(cssH-T-B),
+  };
+}
+
+function strokeCurve(g, G, f, color, width){
+  const { freqs } = f, rel = f.cut.rel;
+  if(!rel) return;
+  g.strokeStyle = color; g.lineWidth = width; g.lineJoin = "round"; g.beginPath();
+  let started = false;
+  for(let i=1;i<freqs.length;i++){
+    if(freqs[i]<G.fMin) continue;
+    if(freqs[i]>G.fMax) break;
+    const x = G.X(freqs[i]), y = G.Y(Math.max(rel[i], G.dbMin));
+    if(started) g.lineTo(x,y); else { g.moveTo(x,y); started = true; }
+  }
+  g.stroke();
+}
+
+function levelAt(f, hz){
+  if(!f.cut.rel) return null;
+  const i = Math.round(hz/(f.freqs[1]-f.freqs[0]));
+  return i>=1 && i<f.freqs.length ? f.cut.rel[i] : null;
+}
+
 function drawChart(){
   const f = state.file;
   if(!f || !f.cut) return;
-  const c = $("chart");
-  const dpr = Math.min(window.devicePixelRatio||1, 2);
-  const W = c.clientWidth || 900, H = Math.round(Math.max(220, Math.min(360, W*0.4)));
-  c.width = Math.round(W*dpr); c.height = Math.round(H*dpr); c.style.height = H+"px";
+  const ref = reference();
+  $("legendThis").textContent = f.name;
+  $("legendRef").hidden = !ref;
+  $("refCtl").hidden = active==="genuine";
+
+  const c = $("chart"), G = chartGeometry();
+  sizeCanvas(c, G);
   const g = c.getContext("2d");
-  g.setTransform(dpr,0,0,dpr,0,0);
-  const L = 58, R = 14, T = 14, B = 44;
-  const fMin = 40, fMax = f.sr/2, dbMin = -100, dbMax = 6;
-  const X = hz => L+(Math.log10(Math.max(hz,fMin))-Math.log10(fMin))/(Math.log10(fMax)-Math.log10(fMin))*(W-L-R);
-  const Y = d => T+(dbMax-d)/(dbMax-dbMin)*(H-T-B);
+  g.setTransform(G.dpr,0,0,G.dpr,0,0);
+  const { cssW:W, cssH:H, L, R, T, B, X, Y } = G;
 
   g.clearRect(0,0,W,H);
   g.strokeStyle = "#161b2b"; g.lineWidth = 1; g.font = "11px ui-monospace,SFMono-Regular,Menlo,monospace";
   g.fillStyle = "#5a6175"; g.textAlign = "center"; g.textBaseline = "top";
   for(const hz of [50,100,200,500,1000,2000,5000,10000,20000]){
-    if(hz<fMin || hz>fMax) continue;
+    if(hz<G.fMin || hz>G.fMax) continue;
     g.beginPath(); g.moveTo(X(hz)+0.5,T); g.lineTo(X(hz)+0.5,H-B); g.stroke();
     g.fillText(fmtTick(hz), X(hz), H-B+6);
   }
   g.textAlign = "right"; g.textBaseline = "middle";
-  for(let d=0; d>=dbMin; d-=20){
+  for(let d=0; d>=G.dbMin; d-=20){
     g.beginPath(); g.moveTo(L,Y(d)+0.5); g.lineTo(W-R,Y(d)+0.5); g.stroke();
     g.fillText(String(d).replace("-","−")+" dB", L-8, Y(d));
   }
@@ -523,19 +634,50 @@ function drawChart(){
     g.fillText((cut/1000).toFixed(1)+" kHz", X(cut)-8, T+6);
   }
 
-  g.strokeStyle = "#f2813c"; g.lineWidth = 1.8; g.lineJoin = "round"; g.beginPath();
-  let started = false;
-  const { freqs } = f, rel = f.cut.rel;
-  for(let i=1;i<freqs.length;i++){
-    if(freqs[i]<fMin) continue;
-    const x = X(freqs[i]), y = Y(Math.max(rel[i], dbMin));
-    if(started) g.lineTo(x,y); else { g.moveTo(x,y); started = true; }
-  }
-  g.stroke();
+  if(ref) strokeCurve(g, G, ref, "rgba(63,191,160,.6)", 1.4);
+  strokeCurve(g, G, f, "#f2813c", 1.8);
 
   g.fillStyle = "#5a6175"; g.textAlign = "left"; g.textBaseline = "bottom";
   g.font = "12px ui-sans-serif,-apple-system,sans-serif";
   g.fillText(t("chart.caption"), L, H-4);
+
+  state.chartGeom = G;
+  drawChartOverlay();
+}
+
+/** 长时间频谱的鼠标读数：该频率上本文件和参考曲线各自的电平。 */
+function drawChartOverlay(){
+  const c = $("chartOverlay"), f = state.file, G = state.chartGeom;
+  if(!f || !f.cut || !G) return;
+  sizeCanvas(c, G);
+  const g = c.getContext("2d");
+  g.setTransform(G.dpr,0,0,G.dpr,0,0);
+  g.clearRect(0,0,G.cssW,G.cssH);
+  const h = state.chartHover;
+  if(!h || h.x<G.L || h.x>G.cssW-G.R || h.y<G.T || h.y>G.cssH-G.B) return;
+
+  const hz = Math.min(G.fMax, G.hzAt(h.x)), x = Math.round(h.x)+0.5;
+  const ref = reference(), mine = levelAt(f, hz), theirs = ref ? levelAt(ref, hz) : null;
+  g.strokeStyle = "rgba(240,242,248,.35)"; g.lineWidth = 1;
+  g.beginPath(); g.moveTo(x, G.T); g.lineTo(x, G.cssH-G.B); g.stroke();
+  const dot = (d, color) => {
+    if(d===null) return;
+    g.fillStyle = color; g.beginPath(); g.arc(x, G.Y(Math.max(d, G.dbMin)), 3.5, 0, 2*Math.PI); g.fill();
+  };
+  dot(theirs, "#3fbfa0");
+  dot(mine, "#f2813c");
+
+  const fmtDb = d => d===null ? "—" : d<=G.dbMin ? "≤ −100 dB" : d.toFixed(0).replace("-","−")+" dB";
+  let text = `${fmtHz(hz)} · ${fmtDb(mine)}`;
+  if(ref) text += ` · ${t("chart.refRead")} ${fmtDb(theirs)}`;
+  g.font = "12px ui-monospace,SFMono-Regular,Menlo,monospace";
+  const w = g.measureText(text).width + 12;
+  let bx = x+12, by = h.y-28;         // 跟着鼠标走，和时频图的读数一致，不会固定压住截止频率标签
+  if(bx+w > G.cssW-G.R) bx = x-12-w;
+  if(by < G.T) by = h.y+10;
+  g.fillStyle = "rgba(5,7,13,.88)"; g.fillRect(bx, by, w, 20);
+  g.fillStyle = "#f0f2f8"; g.textAlign = "left"; g.textBaseline = "middle";
+  g.fillText(text, bx+6, by+10);
 }
 
 /* ---------------------------- 控件 ---------------------------- */
@@ -633,7 +775,27 @@ function setup(){
     if(file) openFile(file);
   });
 
-  for(const b of document.querySelectorAll("[data-sample]")) b.addEventListener("click", () => openSample(b.dataset.sample));
+  $("sources").addEventListener("click", e => {
+    const b = e.target.closest("button[data-src]");
+    if(!b || b.getAttribute("aria-pressed")==="true") return;
+    if(b.dataset.src==="file"){
+      const f = sources.get("file");
+      if(f){ ++selectToken; show("file", f); }
+      return;
+    }
+    select(b.dataset.src);
+  });
+
+  const co = $("chartOverlay");
+  const chartLocal = e => { const r = co.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; };
+  co.addEventListener("pointermove", e => { state.chartHover = chartLocal(e); drawChartOverlay(); });
+  co.addEventListener("pointerleave", () => { state.chartHover = null; drawChartOverlay(); });
+  $("showRef").checked = state.showRef;
+  $("showRef").addEventListener("change", () => {
+    state.showRef = $("showRef").checked;
+    store.set("spf.ref", state.showRef ? "1" : "0");
+    drawChart();
+  });
 
   $("langBtn").addEventListener("click", () => {
     lang = lang==="en" ? "ja" : "en";
@@ -655,9 +817,11 @@ function setup(){
   syncControls();
   applyLang();
 
-  // ?sample=genuine|mp3|synth 直接打开示例，README 可以链接到具体的一个
-  const sample = new URLSearchParams(location.search).get("sample");
-  if(sample==="synth" || Object.hasOwn(SAMPLES, sample||"")) openSample(sample);
+  // 页面一打开就有结果：默认 mp3 示例；?sample=genuine|synth 直接打开另外两个，旧链接 ?sample=mp3 照常可用
+  const q = new URLSearchParams(location.search).get("sample");
+  select(q==="genuine" || q==="synth" ? q : "mp3");
+  // 参考曲线在后台读进来，读完补画
+  loadSource("genuine").then(() => { if(state.file && active!=="genuine") drawChart(); }).catch(() => { /* 没有参考曲线也能用 */ });
 }
 
 setup();

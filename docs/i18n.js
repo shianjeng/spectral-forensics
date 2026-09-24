@@ -13,7 +13,7 @@ const en = {
   "privacy": "Everything runs in your browser. The file is never uploaded anywhere.",
   "drop.title": "Drop an audio file here",
   "drop.sub": "or click to choose — flac, wav, m4a, mp3, ogg",
-  "samples.label": "No file handy? Try one:",
+  "sources.label": "Examples",
   "sample.genuine": "Genuine FLAC",
   "sample.mp3": "128 kbps mp3, back as FLAC",
   "sample.synth": "Sweep, tones & clicks",
@@ -75,6 +75,10 @@ const en = {
 
   "chart.title": "Long-term spectrum",
   "chart.caption": "95th-percentile level, relative to the 200–4000 Hz peak",
+  "chart.ref": "Overlay a genuine FLAC",
+  "chart.refLabel": "genuine FLAC, for reference",
+  "chart.refRead": "ref",
+  "chart.hint": "Hover to read the level at any frequency.",
 
   "how.title": "How it decides",
   "how.cutoff": "<b>Cutoff</b> — the highest frequency still carrying real energy, taken from a 95th-percentile long-term spectrum. A percentile rather than a mean, because quiet passages drag a mean into the noise floor.",
@@ -85,7 +89,7 @@ const en = {
   "read.title": "Reading the spectrogram",
   "read.stft": "<b>STFT</b> cuts the audio into overlapping windows and Fourier-transforms each one. A long window resolves frequency finely but smears events in time; a short window does the opposite. No window setting gets both.",
   "read.reassigned": "<b>Reassignment</b> keeps the window but moves each cell's energy to where it actually is — to the instantaneous frequency (from the phase's rate of change) and to the group delay (from a time-weighted window). Tones sharpen into lines and clicks into points. It is the same computation as <code>spf reassign</code>, and the tests check it against librosa point by point.",
-  "read.cliff": "An mp3's lowpass shows up as a dark, perfectly flat ceiling across the whole track. Set the frequency axis to <b>Linear</b> — the log axis squeezes the top octave — and load the two music samples one after the other.",
+  "read.cliff": "An mp3's lowpass shows up as a dark, perfectly flat ceiling across the whole track. Set the frequency axis to <b>Linear</b> — the log axis squeezes the top octave — and switch between the first two examples. In the long-term spectrum the genuine FLAC stays on as a green reference line, so the missing top octave is visible without switching at all.",
 
   "footer": "Same detection as <code>spf audit</code> in <a href=\"https://github.com/shianjeng/spectral-forensics\">spectral-forensics</a>, ported to JavaScript and checked against the Python implementation on identical signals. The command-line version scans whole libraries, reports implied bitrates and renders posters and videos.",
   "lang.switch": "日本語",
@@ -98,7 +102,7 @@ const ja = {
   "privacy": "処理はすべてブラウザ内で完結します。ファイルがどこかへアップロードされることはありません。",
   "drop.title": "ここに音声ファイルをドロップ",
   "drop.sub": "またはクリックして選択 — flac, wav, m4a, mp3, ogg",
-  "samples.label": "手元にファイルがなければ：",
+  "sources.label": "サンプル",
   "sample.genuine": "本物の FLAC",
   "sample.mp3": "128 kbps mp3 → FLAC",
   "sample.synth": "スイープ・純音・クリック",
@@ -160,6 +164,10 @@ const ja = {
 
   "chart.title": "長時間スペクトル",
   "chart.caption": "95 パーセンタイルのレベル（200–4000 Hz のピーク基準）",
+  "chart.ref": "本物の FLAC を重ねる",
+  "chart.refLabel": "参考：本物の FLAC",
+  "chart.refRead": "参考",
+  "chart.hint": "カーソルを重ねると任意の周波数のレベルを表示します。",
 
   "how.title": "判定のしくみ",
   "how.cutoff": "<b>カットオフ</b> — 実際にエネルギーが残っている最も高い周波数。95 パーセンタイルの長時間スペクトルから求めます。平均ではなくパーセンタイルを使うのは、静かな区間が平均をノイズフロアまで引き下げてしまうからです。",
@@ -170,7 +178,7 @@ const ja = {
   "read.title": "スペクトログラムの読み方",
   "read.stft": "<b>STFT</b> は音声を重なり合う窓に切り分け、それぞれをフーリエ変換します。窓が長いと周波数は細かく分かれますが、時間方向ににじみます。短い窓はその逆で、両方を同時に満たす窓長はありません。",
   "read.reassigned": "<b>再割り当て</b>は窓はそのままに、各セルのエネルギーを本来の位置へ移します。位相の変化率から求めた瞬時周波数と、時間重み付き窓から求めた群遅延の位置です。純音は線に、クリックは点に収束します。<code>spf reassign</code> と同じ計算で、テストで librosa と一点ずつ照合しています。",
-  "read.cliff": "mp3 のローパスは、曲全体にわたる真っ暗で完全に平らな「天井」として現れます。周波数軸を<b>線形</b>にして（対数軸では最上位のオクターブが詰まって見えます）、2 つの音楽サンプルを続けて読み込んでみてください。",
+  "read.cliff": "mp3 のローパスは、曲全体にわたる真っ暗で完全に平らな「天井」として現れます。周波数軸を<b>線形</b>にして（対数軸では最上位のオクターブが詰まって見えます）、最初の 2 つのサンプルを切り替えてみてください。長時間スペクトルには本物の FLAC が緑の参考線として常に重なっているので、切り替えなくても最上位のオクターブが欠けているのがわかります。",
 
   "footer": "判定ロジックは <a href=\"https://github.com/shianjeng/spectral-forensics\">spectral-forensics</a> の <code>spf audit</code> と同じで、JavaScript に移植したうえで同一信号を使って Python 実装と照合しています。コマンドライン版はライブラリ全体の一括スキャン、推定ビットレートの表示、ポスターや動画の書き出しにも対応しています。",
   "lang.switch": "English",

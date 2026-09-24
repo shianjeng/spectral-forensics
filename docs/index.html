@@ -6,6 +6,13 @@
 <title>Is it really lossless? — spectral-forensics</title>
 <meta name="description" content="Drop a FLAC or WAV and find out whether it was ever an mp3, and look at its spectrogram — STFT or reassigned. Runs entirely in your browser; nothing is uploaded.">
 <meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#05070d">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Is it really lossless?">
+<meta property="og:description" content="Find out whether a FLAC or WAV was ever an mp3. Runs entirely in your browser; nothing is uploaded.">
+<meta property="og:url" content="https://shianjeng.github.io/spectral-forensics/">
+<link rel="canonical" href="https://shianjeng.github.io/spectral-forensics/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305070d'/%3E%3Cpath d='M4 21 8 13l4 4 4-8 4 5 2-2v15' fill='none' stroke='%23f2813c' stroke-width='2.6' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
 <style>
   :root{
     --bg:#05070d; --panel:#0b0f1a; --panel2:#101627; --line:#161b2b; --line2:#232b42;
@@ -38,24 +45,32 @@
   button:focus-visible,#drop:focus-visible,input:focus-visible{outline:2px solid var(--ember); outline-offset:2px}
 
   #drop{
+    display:flex; align-items:center; gap:16px;
     border:1px dashed #27304a; border-radius:14px; background:var(--panel);
-    padding:30px 20px; text-align:center; cursor:pointer;
+    padding:18px 22px; cursor:pointer;
     transition:border-color .15s, background .15s;
   }
   #drop:hover,#drop.hot{border-color:var(--ember); background:var(--panel2)}
-  #drop h2{margin:0 0 6px; font-size:16px; font-weight:600}
+  #drop .icon{flex:none; width:42px; height:42px; border-radius:10px; background:var(--panel2);
+              border:1px solid var(--line2); display:grid; place-items:center; color:var(--ember)}
+  #drop h2{margin:0 0 2px; font-size:16px; font-weight:600}
   #drop p{margin:0; color:var(--faint); font-size:13px}
   input[type=file]{display:none}
 
-  .samples{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:14px; font-size:13px; color:var(--faint)}
-  .samples button{background:var(--panel); border:1px solid var(--line2); border-radius:999px;
+  .sources{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px}
+  .sources .label{font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; margin-right:2px}
+  :lang(ja) .sources .label{text-transform:none; letter-spacing:0}
+  .sources .sep{width:1px; height:20px; background:var(--line2); margin:0 4px}
+  .sources button{background:var(--panel); border:1px solid var(--line2); border-radius:999px;
                   padding:5px 13px; font-size:13px; color:var(--dim)}
-  .samples button:hover{color:var(--fg); border-color:var(--ember)}
+  .sources button:hover{color:var(--fg); border-color:var(--dim)}
+  .sources button[aria-pressed=true]{background:#1a2238; color:var(--fg); border-color:var(--ember)}
+  #fileTab{max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 
-  #status{margin-top:16px; color:var(--dim); font-size:14px; min-height:22px}
+  #status{margin-top:10px; color:var(--dim); font-size:14px; min-height:22px}
   #status.err{color:var(--rose)}
 
-  #result{margin-top:22px; display:grid; gap:18px}
+  #result{margin-top:10px; display:grid; gap:18px}
   .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; min-width:0}
   .card h3{margin:0 0 12px; font-size:15px; font-weight:600}
   .verdict{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:4px}
@@ -105,7 +120,12 @@
   #clock{font:12px var(--mono); color:var(--dim); font-variant-numeric:tabular-nums}
   .hint{font-size:12.5px; color:var(--faint); margin:0; flex:1 1 280px}
 
-  #chart{width:100%; display:block; border:1px solid var(--line); border-radius:10px; background:var(--bg)}
+  .chart-wrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--bg)}
+  .chart-wrap canvas{display:block; width:100%}
+  #chartOverlay{position:absolute; inset:0; height:100%; cursor:crosshair; touch-action:pan-y}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; margin-top:10px; font-size:12.5px; color:var(--dim)}
+  .legend i{display:inline-block; width:16px; height:3px; border-radius:2px; vertical-align:middle; margin-right:7px}
+  .legend .hint{flex:1 1 200px; text-align:right}
 
   .how{margin-top:46px; border-top:1px solid var(--line); padding-top:28px;
        display:grid; grid-template-columns:1fr 1fr; gap:10px 40px}
@@ -117,6 +137,9 @@
 
   @media (max-width:720px){
     .wrap{padding-top:28px}
+    #drop{padding:14px 16px; gap:12px}
+    #drop .icon{width:36px; height:36px}
+    .legend .hint{text-align:left}
     h1{font-size:25px}
     .how{grid-template-columns:1fr}
     .card{padding:16px}
@@ -135,16 +158,23 @@
   <p class="privacy" data-i18n="privacy">Everything runs in your browser. The file is never uploaded anywhere.</p>
 
   <div id="drop" tabindex="0" role="button" aria-label="Choose an audio file">
-    <h2 data-i18n="drop.title">Drop an audio file here</h2>
-    <p data-i18n="drop.sub">or click to choose — flac, wav, m4a, mp3, ogg</p>
+    <span class="icon" aria-hidden="true">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+    </span>
+    <div>
+      <h2 data-i18n="drop.title">Drop an audio file here</h2>
+      <p data-i18n="drop.sub">or click to choose — flac, wav, m4a, mp3, ogg</p>
+    </div>
   </div>
   <input type="file" id="file" accept="audio/*,.flac,.wav,.m4a,.aif,.aiff,.mp3,.ogg">
 
-  <div class="samples">
-    <span data-i18n="samples.label">No file handy? Try one:</span>
-    <button type="button" data-sample="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
-    <button type="button" data-sample="mp3" data-i18n="sample.mp3">128 kbps mp3, back as FLAC</button>
-    <button type="button" data-sample="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
+  <div class="sources" id="sources">
+    <button type="button" data-src="file" id="fileTab" hidden></button>
+    <span class="sep" id="fileSep" hidden></span>
+    <span class="label" data-i18n="sources.label">Examples</span>
+    <button type="button" data-src="mp3" data-i18n="sample.mp3">128 kbps mp3, back as FLAC</button>
+    <button type="button" data-src="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
+    <button type="button" data-src="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
   </div>
 
   <div id="status" role="status" aria-live="polite"></div>
@@ -221,8 +251,19 @@
     </div>
 
     <div class="card" id="chartCard">
-      <h3 data-i18n="chart.title">Long-term spectrum</h3>
-      <canvas id="chart"></canvas>
+      <div class="spec-head">
+        <h3 data-i18n="chart.title">Long-term spectrum</h3>
+        <label class="check" id="refCtl"><input type="checkbox" id="showRef" checked> <span data-i18n="chart.ref">Overlay a genuine FLAC</span></label>
+      </div>
+      <div class="chart-wrap" id="chartWrap">
+        <canvas id="chart"></canvas>
+        <canvas id="chartOverlay"></canvas>
+      </div>
+      <div class="legend">
+        <span><i style="background:var(--ember)"></i><span id="legendThis"></span></span>
+        <span id="legendRef" hidden><i style="background:var(--mint)"></i><span data-i18n="chart.refLabel">genuine FLAC, for reference</span></span>
+        <span class="hint" data-i18n="chart.hint">Hover to read the level at any frequency.</span>
+      </div>
     </div>
   </div>
 

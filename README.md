@@ -94,10 +94,18 @@ Below the verdict sits the spectrogram, where an mp3's lowpass is visible as a
 flat ceiling. It is STFT or reassigned (section 3), with 512 / 2048 / 8192-sample
 windows, a log or linear frequency axis, the four palettes, an adjustable dynamic
 range and the detected cutoff marked. Hover over it to read time, frequency and
-level. Click to play from that point. Three samples load with one click: a
-genuine FLAC, the same clip after a 128 kbps mp3 round trip, and a synthetic
-sweep with tones and clicks for comparing window lengths. Each has its own link,
-for example [`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3).
+level. Click to play from that point.
+
+The page never opens empty. It starts on a clip after a 128 kbps mp3 round
+trip, and tabs switch to the genuine FLAC it was encoded from, to a synthetic
+sweep with tones and clicks for comparing window lengths, and to your own file
+once you drop one. Each is decoded once, so switching back is instant. The
+long-term spectrum keeps the genuine FLAC on as a green reference line: the two
+curves coincide up to 16.7 kHz and then only one of them carries on, which is
+the whole argument in one picture. Hover over it to read both levels at any
+frequency. The other two examples have their own links,
+[`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine)
+and [`?sample=synth`](https://shianjeng.github.io/spectral-forensics/?sample=synth).
 The page is in English and Japanese.
 
 The JavaScript is held to the Python, not just modelled on it.
