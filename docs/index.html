@@ -6,192 +6,354 @@
 <title>Is it really lossless? — spectral-forensics</title>
 <meta name="description" content="Drop a FLAC or WAV and find out whether it was ever an mp3, and look at its spectrogram — STFT or reassigned. Runs entirely in your browser; nothing is uploaded.">
 <meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#05070d">
+<meta name="theme-color" content="#07080c">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Is it really lossless?">
 <meta property="og:description" content="Find out whether a FLAC or WAV was ever an mp3. Runs entirely in your browser; nothing is uploaded.">
 <meta property="og:url" content="https://shianjeng.github.io/spectral-forensics/">
 <link rel="canonical" href="https://shianjeng.github.io/spectral-forensics/">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2305070d'/%3E%3Cpath d='M4 21 8 13l4 4 4-8 4 5 2-2v15' fill='none' stroke='%23f2813c' stroke-width='2.6' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2307080c'/%3E%3Cpath d='M4 21 8 13l4 4 4-8 4 5 2-2v15' fill='none' stroke='%23f2813c' stroke-width='2.6' stroke-linejoin='round' stroke-linecap='round'/%3E%3C/svg%3E">
+<!-- 字体随页面一起托管（docs/fonts，SIL OFL 1.1），不向任何第三方发请求 -->
+<link rel="preload" href="fonts/geist.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/instrument-serif-italic.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+  @font-face{font-family:"Geist"; src:url(fonts/geist.woff2) format("woff2"); font-weight:100 900; font-display:swap}
+  @font-face{font-family:"Geist Mono"; src:url(fonts/geist-mono.woff2) format("woff2"); font-weight:100 900; font-display:swap}
+  @font-face{font-family:"Instrument Serif"; src:url(fonts/instrument-serif.woff2) format("woff2"); font-weight:400; font-style:normal; font-display:swap}
+  @font-face{font-family:"Instrument Serif"; src:url(fonts/instrument-serif-italic.woff2) format("woff2"); font-weight:400; font-style:italic; font-display:swap}
+
   :root{
-    --bg:#05070d; --panel:#0b0f1a; --panel2:#101627; --line:#161b2b; --line2:#232b42;
-    --fg:#f0f2f8; --dim:#8b93a7; --faint:#5a6175;
-    --ember:#f2813c; --gold:#ffe6a7; --rose:#b83355; --violet:#c264a8; --mint:#3fbfa0;
-    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
-    box-sizing:border-box;
-    padding-top:env(safe-area-inset-top,0px);
-    padding-bottom:env(safe-area-inset-bottom,0px);
+    --bg:#07080c; --surface:#0c0e15; --surface-2:#11141d; --surface-3:#1a1e2b; --well:#04050a;
+    --hair:rgba(255,255,255,.065); --hair-2:rgba(255,255,255,.11); --hair-3:rgba(255,255,255,.2);
+    --fg:#eef0f6; --fg-2:#aab0c3; --fg-3:#7c839a;
+    --ember:#f2813c; --ember-soft:rgba(242,129,60,.11);
+    --rose:#ff6b8a; --rose-soft:rgba(255,107,138,.10);
+    --gold:#f3d38b; --gold-soft:rgba(243,211,139,.10);
+    --mint:#4fd1ae; --mint-soft:rgba(79,209,174,.10);
+    --slate:#9aa1b5; --slate-soft:rgba(154,161,181,.08);
+    --serif:"Instrument Serif","Hiragino Mincho ProN","Yu Mincho","Noto Serif JP",Georgia,serif;
+    --sans:"Geist",ui-sans-serif,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",Roboto,sans-serif;
+    --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --r:16px;
+    --lift:0 1px 0 rgba(255,255,255,.035) inset, 0 24px 48px -32px rgba(0,0,0,.8);
   }
-  *,*::before,*::after{box-sizing:inherit}
+  *,*::before,*::after{box-sizing:border-box}
   [hidden]{display:none!important}
+  html{-webkit-text-size-adjust:100%}
   body{
-    margin:0; background:var(--bg); color:var(--fg);
-    font:15px/1.6 ui-sans-serif,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",Roboto,"Helvetica Neue",Arial,sans-serif;
-    -webkit-font-smoothing:antialiased;
+    margin:0; color:var(--fg); font:15px/1.65 var(--sans);
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+    background:
+      radial-gradient(900px 440px at 12% -140px, rgba(242,129,60,.10), transparent 70%),
+      radial-gradient(760px 400px at 96% -180px, rgba(194,100,168,.07), transparent 70%),
+      var(--bg);
+    background-repeat:no-repeat;
+    padding:env(safe-area-inset-top,0) env(safe-area-inset-right,0) env(safe-area-inset-bottom,0) env(safe-area-inset-left,0);
   }
-  .wrap{max-width:980px; margin:0 auto; padding:40px 16px 80px}
-  header{display:flex; justify-content:space-between; align-items:flex-start; gap:16px}
-  h1{font-size:30px; line-height:1.25; margin:0 0 10px; letter-spacing:-.02em}
-  .lede{color:var(--dim); margin:0 0 6px; max-width:760px}
-  .privacy{color:var(--mint); font-size:13px; margin:0 0 26px}
-  code,kbd{font-family:var(--mono); font-size:.92em}
-  a{color:var(--ember)}
-
+  ::selection{background:rgba(242,129,60,.35)}
+  a{color:inherit}
   button{font:inherit; color:inherit; cursor:pointer}
-  .ghost{background:none; border:1px solid var(--line2); border-radius:999px; padding:4px 12px;
-         font-size:13px; color:var(--dim); white-space:nowrap}
-  .ghost:hover{color:var(--fg); border-color:var(--dim)}
-  button:focus-visible,#drop:focus-visible,input:focus-visible{outline:2px solid var(--ember); outline-offset:2px}
+  :focus-visible{outline:2px solid var(--ember); outline-offset:2px; border-radius:6px}
+  code{font:.9em var(--mono); background:rgba(255,255,255,.05); border:1px solid var(--hair); padding:1px 5px; border-radius:5px}
 
-  #drop{
-    display:flex; align-items:center; gap:16px;
-    border:1px dashed #27304a; border-radius:14px; background:var(--panel);
-    padding:18px 22px; cursor:pointer;
-    transition:border-color .15s, background .15s;
-  }
-  #drop:hover,#drop.hot{border-color:var(--ember); background:var(--panel2)}
-  #drop .icon{flex:none; width:42px; height:42px; border-radius:10px; background:var(--panel2);
-              border:1px solid var(--line2); display:grid; place-items:center; color:var(--ember)}
-  #drop h2{margin:0 0 2px; font-size:16px; font-weight:600}
-  #drop p{margin:0; color:var(--faint); font-size:13px}
+  .wrap{max-width:1060px; margin:0 auto; padding:0 24px}
+
+  /* ---------- top bar ---------- */
+  .top{display:flex; align-items:center; justify-content:space-between; gap:16px; padding:22px 0}
+  .brand{display:inline-flex; align-items:center; gap:10px; text-decoration:none; font-weight:500; font-size:14px; letter-spacing:-.01em}
+  .brand svg{flex:none}
+  .nav{display:flex; align-items:center; gap:4px}
+  .nav a,.lang{display:inline-flex; align-items:center; gap:7px; font-size:13px; color:var(--fg-2); text-decoration:none;
+               padding:6px 11px; border-radius:9px; border:1px solid transparent; background:none; transition:color .15s, background .15s, border-color .15s}
+  .nav a:hover,.lang:hover{color:var(--fg); background:var(--surface-2)}
+  .lang{border-color:var(--hair-2); margin-left:6px}
+
+  /* ---------- hero ---------- */
+  .hero{padding:52px 0 34px}
+  h1{font:400 clamp(44px,6.6vw,70px)/1 var(--serif); letter-spacing:-.02em; margin:0 0 20px}
+  h1 em{font-style:italic; padding-right:.06em; color:var(--ember);
+        background:linear-gradient(95deg,#f2813c 10%,#ffc98f 90%); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent}
+  :lang(ja) h1{font-size:clamp(34px,5.2vw,54px); line-height:1.2; letter-spacing:.01em}
+  :lang(ja) h1 em{font-style:normal}
+  .lede{font-size:17.5px; line-height:1.6; color:var(--fg-2); max-width:60ch; margin:0 0 20px}
+  :lang(ja) .lede{font-size:16px; line-height:1.85}
+  :lang(ja) h1,:lang(ja) .lede,:lang(ja) .headline,:lang(ja) .section h2{word-break:auto-phrase}
+  .privacy{display:inline-flex; align-items:center; gap:8px; margin:0; font-size:13px; color:var(--mint);
+           background:var(--mint-soft); border:1px solid rgba(79,209,174,.2); padding:5px 13px 5px 10px; border-radius:999px}
+
+  /* ---------- drop zone ---------- */
+  #drop{position:relative; display:flex; align-items:center; gap:18px; padding:22px 24px; border-radius:var(--r); cursor:pointer;
+        background:linear-gradient(180deg,var(--surface-2),var(--surface)); border:1px solid var(--hair-2); box-shadow:var(--lift);
+        transition:border-color .2s, box-shadow .2s}
+  #drop::after{content:""; position:absolute; inset:6px; border:1px dashed rgba(255,255,255,.09); border-radius:11px; pointer-events:none; transition:border-color .2s}
+  #drop:hover{border-color:var(--hair-3)}
+  #drop:hover::after{border-color:rgba(242,129,60,.35)}
+  #drop.hot{border-color:rgba(242,129,60,.6); box-shadow:0 0 0 5px var(--ember-soft), var(--lift)}
+  #drop.hot::after{border-color:rgba(242,129,60,.7)}
+  #drop .icon{flex:none; width:46px; height:46px; border-radius:12px; display:grid; place-items:center; color:var(--ember);
+              background:var(--ember-soft); border:1px solid rgba(242,129,60,.22)}
+  .drop-text{flex:1; min-width:0}
+  #drop h2{margin:0 0 2px; font-size:16px; font-weight:500; letter-spacing:-.01em}
+  #drop p{margin:0; font-size:13px; color:var(--fg-3)}
+  .drop-cta{flex:none; font-size:13px; font-weight:500; background:var(--surface-3); border:1px solid var(--hair-2);
+            padding:8px 15px; border-radius:10px; transition:border-color .2s}
+  #drop:hover .drop-cta{border-color:var(--hair-3)}
   input[type=file]{display:none}
 
-  .sources{display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-top:16px}
-  .sources .label{font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em; margin-right:2px}
-  :lang(ja) .sources .label{text-transform:none; letter-spacing:0}
-  .sources .sep{width:1px; height:20px; background:var(--line2); margin:0 4px}
-  .sources button{background:var(--panel); border:1px solid var(--line2); border-radius:999px;
-                  padding:5px 13px; font-size:13px; color:var(--dim)}
-  .sources button:hover{color:var(--fg); border-color:var(--dim)}
-  .sources button[aria-pressed=true]{background:#1a2238; color:var(--fg); border-color:var(--ember)}
-  #fileTab{max-width:280px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  /* ---------- source tabs ---------- */
+  .sources{display:flex; flex-wrap:wrap; align-items:center; gap:10px 12px; margin-top:18px}
+  .sources .label{font:500 10.5px var(--mono); color:var(--fg-3); text-transform:uppercase; letter-spacing:.1em}
+  :lang(ja) .sources .label{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
+  .sources .sep{width:1px; height:22px; background:var(--hair-2)}
+  .tabs{display:inline-flex; flex-wrap:wrap; gap:2px; padding:3px; background:var(--surface); border:1px solid var(--hair-2); border-radius:12px}
+  .tabs button,.file-tab{border:0; background:none; color:var(--fg-2); font-size:13px; padding:6px 13px; border-radius:9px;
+                         transition:background .15s, color .15s, box-shadow .15s}
+  .tabs button:hover{color:var(--fg)}
+  .tabs button[aria-pressed=true]{background:var(--surface-3); color:var(--fg); box-shadow:0 1px 0 rgba(255,255,255,.07) inset, 0 2px 6px -2px rgba(0,0,0,.6)}
+  .file-tab{display:inline-flex; align-items:center; gap:8px; max-width:300px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+            background:var(--surface); border:1px solid var(--hair-2); padding:7px 14px 7px 12px}
+  .file-tab::before{content:""; flex:none; width:6px; height:6px; border-radius:50%; background:var(--ember); box-shadow:0 0 0 3px var(--ember-soft)}
+  .file-tab:hover{color:var(--fg)}
+  .file-tab[aria-pressed=true]{color:var(--fg); border-color:rgba(242,129,60,.5); background:var(--surface-2)}
 
-  #status{margin-top:10px; color:var(--dim); font-size:14px; min-height:22px}
+  #status{margin:14px 0 0; font-size:13.5px; color:var(--fg-2)}
+  #status:empty{display:none}
   #status.err{color:var(--rose)}
 
-  #result{margin-top:10px; display:grid; gap:18px}
-  .card{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; min-width:0}
-  .card h3{margin:0 0 12px; font-size:15px; font-weight:600}
-  .verdict{display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:4px}
-  .badge{font-size:22px; font-weight:700; letter-spacing:-.01em}
-  .badge.clean{color:var(--mint)} .badge.likely{color:var(--gold)}
-  .badge.suspect{color:var(--rose)} .badge.lossy{color:var(--dim)}
-  .fname{color:var(--faint); font-size:13px; word-break:break-all}
-  .headline{color:var(--dim); margin:2px 0 16px}
-  .stats{display:flex; gap:26px; flex-wrap:wrap; margin-bottom:16px}
-  .stat b{display:block; font-size:19px; font-weight:600; color:var(--fg); font-variant-numeric:tabular-nums}
-  .stat span{font-size:12px; color:var(--faint); text-transform:uppercase; letter-spacing:.06em}
-  :lang(ja) .stat span{text-transform:none; letter-spacing:0}
-  ul.notes{margin:0; padding-left:18px; color:var(--dim); font-size:13.5px}
-  ul.notes li{margin:4px 0}
-  .synth{color:var(--dim); font-size:14px; margin:0}
+  /* ---------- cards ---------- */
+  #result,.skeleton-wrap{margin-top:22px; display:grid; gap:18px}
+  .card{position:relative; min-width:0; padding:24px; border-radius:var(--r); border:1px solid var(--hair); box-shadow:var(--lift);
+        background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,0) 140px),var(--surface)}
+  .card-head{display:flex; justify-content:space-between; align-items:center; gap:10px 16px; flex-wrap:wrap; margin-bottom:18px}
+  .card h3{margin:0; font-size:15px; font-weight:500; letter-spacing:-.005em}
+  .res{font:12px var(--mono); color:var(--fg-3)}
 
-  /* ---- spectrogram ---- */
-  .spec-head{display:flex; justify-content:space-between; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:12px}
-  .spec-head h3{margin:0}
-  .res{font:12px var(--mono); color:var(--faint)}
-  .toolbar{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin-bottom:14px}
-  .ctl{display:flex; align-items:center; gap:8px; font-size:12px; color:var(--faint)}
-  .ctl > span:first-child{text-transform:uppercase; letter-spacing:.06em}
-  :lang(ja) .ctl > span:first-child{text-transform:none; letter-spacing:0}
-  .seg{display:inline-flex; border:1px solid var(--line2); border-radius:8px; overflow:hidden}
-  .seg button{background:none; border:0; padding:4px 10px; font-size:13px; color:var(--dim); font-variant-numeric:tabular-nums}
-  .seg button + button{border-left:1px solid var(--line2)}
+  /* verdict */
+  .verdict-card{overflow:hidden; padding:28px 28px 24px; --tone:var(--fg-3); --tone-soft:transparent}
+  .verdict-card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:3px; background:var(--tone)}
+  .verdict-card::after{content:""; position:absolute; inset:0; pointer-events:none;
+                       background:radial-gradient(640px 220px at 0 0,var(--tone-soft),transparent 72%)}
+  .verdict-card[data-tier=suspect]{--tone:var(--rose); --tone-soft:var(--rose-soft)}
+  .verdict-card[data-tier=likely]{--tone:var(--gold); --tone-soft:var(--gold-soft)}
+  .verdict-card[data-tier=clean]{--tone:var(--mint); --tone-soft:var(--mint-soft)}
+  .verdict-card[data-tier=lossy]{--tone:var(--slate); --tone-soft:var(--slate-soft)}
+  .verdict-card > *{position:relative; z-index:1}
+  .verdict-head{display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin-bottom:12px}
+  .badge{display:inline-flex; align-items:center; font-size:13px; font-weight:600; letter-spacing:.02em; padding:4px 12px; border-radius:999px;
+         color:var(--tone); background:var(--tone-soft); border:1px solid color-mix(in srgb,var(--tone) 32%,transparent)}
+  .fname{font:12.5px var(--mono); color:var(--fg-3); word-break:break-all}
+  .headline{font:400 28px/1.2 var(--serif); letter-spacing:-.005em; margin:0 0 24px; max-width:36ch}
+  :lang(ja) .headline{font-size:22px; line-height:1.55; max-width:none}
+  .stats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin:0 0 20px; border:1px solid var(--hair); border-radius:12px; overflow:hidden; background:rgba(0,0,0,.2)}
+  .stat{padding:14px 16px 15px; border-left:1px solid var(--hair); min-width:0}
+  .stat:first-child{border-left:0}
+  .stat dt{font-size:12px; font-weight:500; color:var(--fg-3); margin-bottom:6px}
+  .stat dt::first-letter{text-transform:uppercase}
+  .stat dd{margin:0; font:500 22px/1.1 var(--mono); letter-spacing:-.03em; font-variant-numeric:tabular-nums; white-space:nowrap}
+  .stat:first-child dd{color:var(--tone)}
+  ul.notes{list-style:none; margin:0; padding:0; display:grid; gap:8px}
+  ul.notes li{position:relative; padding-left:18px; font-size:13.5px; line-height:1.6; color:var(--fg-2)}
+  ul.notes li::before{content:""; position:absolute; left:3px; top:.66em; width:5px; height:5px; border-radius:50%; background:var(--tone); opacity:.75}
+  .synth{margin:0; font-size:15px; color:var(--fg-2); max-width:78ch}
+
+  /* skeleton */
+  .sk{border-radius:7px; background:linear-gradient(90deg,rgba(255,255,255,.035) 20%,rgba(255,255,255,.075) 50%,rgba(255,255,255,.035) 80%);
+      background-size:220% 100%; animation:shimmer 1.3s linear infinite}
+  @keyframes shimmer{from{background-position:120% 0} to{background-position:-120% 0}}
+
+  /* controls */
+  .toolbar{display:flex; flex-wrap:wrap; gap:12px 24px; align-items:center; margin:0 0 18px; padding:0 0 18px; border-bottom:1px solid var(--hair)}
+  .ctl{display:flex; align-items:center; gap:10px; font-size:12px; color:var(--fg-3)}
+  .ctl > span:first-child{font:500 10.5px var(--mono); text-transform:uppercase; letter-spacing:.09em}
+  :lang(ja) .ctl > span:first-child{font:500 12px var(--sans); text-transform:none; letter-spacing:0}
+  .seg{display:inline-flex; gap:2px; padding:2px; background:rgba(0,0,0,.25); border:1px solid var(--hair-2); border-radius:9px}
+  .seg button{background:none; border:0; padding:4px 10px; font-size:12.5px; color:var(--fg-2); border-radius:7px; font-variant-numeric:tabular-nums; transition:background .15s, color .15s}
   .seg button:hover{color:var(--fg)}
-  .seg button[aria-pressed=true]{background:#1a2238; color:var(--fg)}
-  .swatches{display:inline-flex; gap:6px}
-  .swatches button{width:30px; height:16px; border-radius:4px; border:1px solid var(--line2); padding:0}
-  .swatches button[aria-pressed=true]{outline:2px solid var(--fg); outline-offset:1px}
-  input[type=range]{width:96px; accent-color:var(--ember)}
-  .ctl output{font:12px var(--mono); color:var(--dim); min-width:44px}
-  label.check{display:flex; align-items:center; gap:6px; font-size:13px; color:var(--dim); cursor:pointer}
-  label.check input{accent-color:var(--rose)}
+  .seg button[aria-pressed=true]{background:var(--surface-3); color:var(--fg); box-shadow:0 1px 0 rgba(255,255,255,.07) inset}
+  .swatches{display:inline-flex; gap:7px}
+  .swatches button{width:28px; height:14px; border-radius:4px; border:0; padding:0; box-shadow:0 0 0 1px var(--hair-2) inset; transition:transform .15s, box-shadow .15s}
+  .swatches button:hover{transform:translateY(-1px)}
+  .swatches button[aria-pressed=true]{box-shadow:0 0 0 2px var(--bg), 0 0 0 3.5px var(--fg-2)}
+  input[type=range]{width:100px; accent-color:var(--ember)}
+  .ctl output{font:12px var(--mono); color:var(--fg-2); min-width:46px}
+  label.check{display:inline-flex; align-items:center; gap:8px; font-size:13px; color:var(--fg-2); cursor:pointer; user-select:none}
+  label.check input{accent-color:var(--ember); width:14px; height:14px; margin:0}
 
-  .spec-wrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:#03050a}
-  .spec-wrap canvas{display:block; width:100%}
-  #specOverlay{position:absolute; inset:0; height:100%; cursor:crosshair; touch-action:pan-y}
-  #specBusy{position:absolute; right:10px; top:8px; font:12px var(--mono); color:var(--gold);
-            background:rgba(5,7,13,.8); padding:3px 8px; border-radius:6px; pointer-events:none}
-  .spec-foot{display:flex; justify-content:space-between; align-items:center; gap:12px; flex-wrap:wrap; margin-top:12px}
-  .transport{display:flex; align-items:center; gap:10px}
-  #playBtn{min-width:86px; background:var(--ember); color:#1a0b02; border:0; border-radius:8px; padding:5px 14px; font-weight:600; font-size:13px}
-  #playBtn:hover{filter:brightness(1.1)}
-  #clock{font:12px var(--mono); color:var(--dim); font-variant-numeric:tabular-nums}
-  .hint{font-size:12.5px; color:var(--faint); margin:0; flex:1 1 280px}
+  /* plots */
+  .frame{position:relative; border:1px solid var(--hair); border-radius:12px; overflow:hidden; background:var(--well)}
+  .frame canvas{display:block; width:100%}
+  #specOverlay,#chartOverlay{position:absolute; inset:0; height:100%; cursor:crosshair; touch-action:pan-y}
+  #specBusy{position:absolute; right:10px; top:10px; font:12px var(--mono); color:var(--gold); pointer-events:none;
+            background:rgba(7,8,12,.84); border:1px solid var(--hair-2); padding:3px 10px; border-radius:7px}
+  .foot-row{display:flex; justify-content:space-between; align-items:center; gap:12px 20px; flex-wrap:wrap; margin-top:16px}
+  .transport{display:flex; align-items:center; gap:12px}
+  #playBtn{display:inline-flex; align-items:center; justify-content:center; gap:8px; min-width:96px; border:0; border-radius:999px;
+           padding:8px 17px 8px 14px; font-size:13px; font-weight:600; color:#1c0c02; background:linear-gradient(180deg,#ff9150,#ee7630);
+           box-shadow:0 1px 0 rgba(255,255,255,.28) inset, 0 8px 20px -10px rgba(242,129,60,.9); transition:filter .15s, transform .1s}
+  #playBtn:hover{filter:brightness(1.07)}
+  #playBtn:active{transform:translateY(1px)}
+  #playBtn .i-pause, #playBtn.playing .i-play{display:none}
+  #playBtn.playing .i-pause{display:block}
+  #clock{font:12.5px var(--mono); color:var(--fg-2); font-variant-numeric:tabular-nums}
+  .btn-ghost{display:inline-flex; align-items:center; gap:7px; background:none; border:1px solid var(--hair-2); color:var(--fg-2);
+             border-radius:999px; padding:6px 13px; font-size:12.5px; transition:color .15s, border-color .15s, background .15s}
+  .btn-ghost:hover{color:var(--fg); border-color:var(--hair-3); background:var(--surface-2)}
+  .hint{margin:0; font-size:12.5px; color:var(--fg-3); flex:1 1 260px; text-align:right}
+  .legend{display:flex; flex-wrap:wrap; gap:8px 22px; align-items:center; margin-top:14px; font-size:12.5px; color:var(--fg-2)}
+  .legend i{display:inline-block; width:18px; height:2px; border-radius:2px; vertical-align:middle; margin-right:9px}
+  #legendThis{font:12px var(--mono)}
 
-  .chart-wrap{position:relative; border:1px solid var(--line); border-radius:10px; overflow:hidden; background:var(--bg)}
-  .chart-wrap canvas{display:block; width:100%}
-  #chartOverlay{position:absolute; inset:0; height:100%; cursor:crosshair; touch-action:pan-y}
-  .legend{display:flex; flex-wrap:wrap; gap:6px 18px; align-items:center; margin-top:10px; font-size:12.5px; color:var(--dim)}
-  .legend i{display:inline-block; width:16px; height:3px; border-radius:2px; vertical-align:middle; margin-right:7px}
-  .legend .hint{flex:1 1 200px; text-align:right}
+  #result.swap > *{animation:fade .32s ease both}
+  @keyframes fade{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
 
-  .how{margin-top:46px; border-top:1px solid var(--line); padding-top:28px;
-       display:grid; grid-template-columns:1fr 1fr; gap:10px 40px}
-  .how section h3{font-size:15px; margin:0 0 10px}
-  .how p,.how li{color:var(--dim); font-size:14px}
-  .how ol{padding-left:20px; margin-top:0}
-  .caveat{border-left:2px solid var(--ember); padding-left:14px; color:var(--dim); font-size:13.5px}
-  footer{margin-top:36px; color:var(--faint); font-size:13px}
+  /* ---------- explainer ---------- */
+  .section{margin-top:84px}
+  .section-head{display:flex; align-items:baseline; gap:14px; margin-bottom:24px}
+  .num{font:500 11px var(--mono); color:var(--ember); letter-spacing:.1em}
+  .section h2{margin:0; font:400 36px/1.1 var(--serif); letter-spacing:-.01em}
+  :lang(ja) .section h2{font-size:28px; letter-spacing:.02em}
+  .how-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px}
+  .how-card{padding:22px 22px 20px}
+  .how-card svg{display:block; width:100%; height:auto; margin:0 0 18px; overflow:visible}
+  .how-card p{margin:0; font-size:14px; line-height:1.65; color:var(--fg-2)}
+  .how-card b,.read-grid b,.caveat b{color:var(--fg); font-weight:600}
+  .caveat{margin:16px 0 0; padding:15px 18px 15px 20px; border-radius:12px; font-size:13.5px; line-height:1.65; color:var(--fg-2);
+          background:linear-gradient(90deg,var(--ember-soft),transparent 80%); border:1px solid rgba(242,129,60,.18)}
+  .read-grid{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:32px}
+  .read-grid p{margin:0; font-size:14.5px; line-height:1.7; color:var(--fg-2)}
 
+  /* ---------- footer ---------- */
+  .site-foot{margin-top:88px; padding:32px 0 48px; border-top:1px solid var(--hair); display:grid; grid-template-columns:minmax(0,1fr); gap:20px}
+  .install{display:flex; flex-wrap:wrap; align-items:center; gap:12px 16px; padding:18px 20px; border-radius:14px;
+           background:var(--surface); border:1px solid var(--hair); box-shadow:var(--lift)}
+  .install .lbl{flex:1 1 240px; font-size:14px; color:var(--fg-2)}
+  .cmd{display:inline-flex; align-items:center; gap:12px; min-width:0; max-width:100%; background:var(--well); border:1px solid var(--hair-2); border-radius:10px; padding:5px 5px 5px 14px}
+  .cmd code{min-width:0; background:none; border:0; padding:0; font-size:13px; color:var(--fg); white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+  .cmd .btn-ghost{flex:none}
+  .cmd code::before{content:"$ "; color:var(--ember)}
+  .fine{margin:0; font-size:13px; line-height:1.7; color:var(--fg-3); max-width:86ch}
+  .fine a{color:var(--fg-2); text-decoration-color:rgba(255,255,255,.25); text-underline-offset:3px}
+  .fine a:hover{color:var(--fg)}
+  .links{display:flex; flex-wrap:wrap; gap:6px 18px; font-size:12.5px; color:var(--fg-3)}
+  .links a{text-decoration:none; color:var(--fg-2)}
+  .links a:hover{color:var(--fg)}
+
+  @media (max-width:860px){
+    .how-grid,.read-grid{grid-template-columns:1fr}
+    .read-grid{gap:18px}
+  }
   @media (max-width:720px){
-    .wrap{padding-top:28px}
-    #drop{padding:14px 16px; gap:12px}
-    #drop .icon{width:36px; height:36px}
-    .legend .hint{text-align:left}
-    h1{font-size:25px}
-    .how{grid-template-columns:1fr}
-    .card{padding:16px}
-    .toolbar{gap:10px 14px}
+    .wrap{padding:0 16px}
+    .top{padding:16px 0}
+    .hero{padding:30px 0 24px}
+    .lede{font-size:16px}
+    #drop{padding:16px; gap:14px}
+    #drop .icon{width:40px; height:40px}
+    .drop-cta{display:none}
+    .privacy{border-radius:12px; align-items:flex-start; padding:8px 13px 8px 11px; line-height:1.5}
+    .privacy svg{margin-top:3px; flex:none}
+    .sources .label{flex:1 0 100%}
+    .tabs{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%}
+    .tabs button{padding:8px 6px; line-height:1.3; text-align:center}
+    .card{padding:18px}
+    .verdict-card{padding:22px 18px 18px}
+    .headline{font-size:23px}
+    .stats{grid-template-columns:1fr 1fr}
+    .stat:nth-child(3){border-left:0}
+    .stat:nth-child(n+3){border-top:1px solid var(--hair)}
+    .toolbar{gap:12px 16px}
+    .hint{text-align:left}
+    .section{margin-top:60px}
+    .section h2{font-size:30px}
+    .site-foot{margin-top:64px}
+  }
+  @media (max-width:520px){
+    .nav .pypi, .nav .gh-label{display:none}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important; transition:none!important}
   }
 </style>
 </head>
 <body>
 <div class="wrap">
 
-  <header>
-    <h1 data-i18n="title">Is it really lossless?</h1>
-    <button class="ghost" id="langBtn" type="button">日本語</button>
+  <header class="top">
+    <a class="brand" href="https://github.com/shianjeng/spectral-forensics">
+      <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect x=".5" y=".5" width="31" height="31" rx="8" fill="#11141d" stroke="rgba(255,255,255,.12)"/><path d="M5 20 9 13l4 4 4-8 4 5 2-2v14" fill="none" stroke="#f2813c" stroke-width="2.4" stroke-linejoin="round" stroke-linecap="round"/></svg>
+      spectral-forensics
+    </a>
+    <nav class="nav">
+      <a class="pypi" href="https://pypi.org/project/spectral-forensics/">PyPI</a>
+      <a href="https://github.com/shianjeng/spectral-forensics" aria-label="GitHub">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="gh-label">GitHub</span>
+      </a>
+      <button class="lang" id="langBtn" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M2.5 12h19M12 2.5c2.6 2.8 3.9 6 3.9 9.5S14.6 18.7 12 21.5M12 2.5C9.4 5.3 8.1 8.5 8.1 12s1.3 6.7 3.9 9.5"/></svg>
+        <span id="langLabel">日本語</span>
+      </button>
+    </nav>
   </header>
-  <p class="lede" data-i18n="lede">Drop a FLAC, WAV or ALAC file. If it was ever an mp3, the encoder left a cliff in its spectrum — and the cliff survives conversion back to a lossless container.</p>
-  <p class="privacy" data-i18n="privacy">Everything runs in your browser. The file is never uploaded anywhere.</p>
+
+  <section class="hero">
+    <h1 data-i18n-html="title">Is it really <em>lossless?</em></h1>
+    <p class="lede" data-i18n="lede">Drop a FLAC, WAV or ALAC file. If it was ever an mp3, the encoder left a cliff in its spectrum — and the cliff survives conversion back to a lossless container.</p>
+    <p class="privacy">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+      <span data-i18n="privacy">Everything runs in your browser. The file is never uploaded anywhere.</span>
+    </p>
+  </section>
 
   <div id="drop" tabindex="0" role="button" aria-label="Choose an audio file">
     <span class="icon" aria-hidden="true">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M7 8.5l5-4.5 5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
     </span>
-    <div>
+    <div class="drop-text">
       <h2 data-i18n="drop.title">Drop an audio file here</h2>
       <p data-i18n="drop.sub">or click to choose — flac, wav, m4a, mp3, ogg</p>
     </div>
+    <span class="drop-cta" data-i18n="drop.cta">Choose file</span>
   </div>
   <input type="file" id="file" accept="audio/*,.flac,.wav,.m4a,.aif,.aiff,.mp3,.ogg">
 
   <div class="sources" id="sources">
-    <button type="button" data-src="file" id="fileTab" hidden></button>
+    <button type="button" data-src="file" id="fileTab" class="file-tab" hidden></button>
     <span class="sep" id="fileSep" hidden></span>
     <span class="label" data-i18n="sources.label">Examples</span>
-    <button type="button" data-src="mp3" data-i18n="sample.mp3">128 kbps mp3, back as FLAC</button>
-    <button type="button" data-src="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
-    <button type="button" data-src="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
+    <div class="tabs" role="group">
+      <button type="button" data-src="mp3" data-i18n="sample.mp3">128 kbps mp3, back as FLAC</button>
+      <button type="button" data-src="genuine" data-i18n="sample.genuine">Genuine FLAC</button>
+      <button type="button" data-src="synth" data-i18n="sample.synth">Sweep, tones &amp; clicks</button>
+    </div>
   </div>
 
   <div id="status" role="status" aria-live="polite"></div>
 
+  <div class="skeleton-wrap" id="skeleton" aria-hidden="true">
+    <div class="card">
+      <div class="sk" style="width:128px;height:26px;border-radius:999px;margin-bottom:16px"></div>
+      <div class="sk" style="width:min(460px,80%);height:28px;margin-bottom:24px"></div>
+      <div class="sk" style="height:72px;border-radius:12px;margin-bottom:20px"></div>
+      <div class="sk" style="width:88%;height:12px;margin-bottom:10px"></div>
+      <div class="sk" style="width:64%;height:12px"></div>
+    </div>
+    <div class="card"><div class="sk" style="height:320px;border-radius:12px"></div></div>
+  </div>
+
   <div id="result" hidden>
-    <div class="card" id="verdictCard">
-      <div class="verdict">
+    <div class="card verdict-card" id="verdictCard">
+      <div class="verdict-head">
         <span class="badge" id="badge"></span>
         <span class="fname" id="fname"></span>
       </div>
       <p class="headline" id="headline"></p>
-      <div class="stats">
-        <div class="stat"><b id="s-cut">—</b><span data-i18n="stat.cutoff">cutoff</span></div>
-        <div class="stat"><b id="s-steep">—</b><span data-i18n="stat.steep">falloff in next 1 kHz</span></div>
-        <div class="stat"><b id="s-stereo">—</b><span data-i18n="stat.stereo">side signal collapse</span></div>
-        <div class="stat"><b id="s-dur">—</b><span data-i18n="stat.dur">analysed</span></div>
-      </div>
+      <dl class="stats">
+        <div class="stat"><dt data-i18n="stat.cutoff">cutoff</dt><dd id="s-cut">—</dd></div>
+        <div class="stat"><dt data-i18n="stat.steep">falloff in next 1 kHz</dt><dd id="s-steep">—</dd></div>
+        <div class="stat"><dt data-i18n="stat.stereo">side signal collapse</dt><dd id="s-stereo">—</dd></div>
+        <div class="stat"><dt data-i18n="stat.dur">analysed</dt><dd id="s-dur">—</dd></div>
+      </dl>
       <ul class="notes" id="notes"></ul>
     </div>
 
@@ -200,7 +362,7 @@
     </div>
 
     <div class="card" id="specCard">
-      <div class="spec-head">
+      <div class="card-head">
         <h3 data-i18n="spec.title">Spectrogram</h3>
         <span class="res" id="resLabel"></span>
       </div>
@@ -234,28 +396,35 @@
         <label class="check"><input type="checkbox" id="showCutoff" checked> <span data-i18n="spec.cutoff">Mark the cutoff</span></label>
       </div>
 
-      <div class="spec-wrap" id="specWrap">
+      <div class="frame" id="specWrap">
         <canvas id="spec"></canvas>
         <canvas id="specOverlay"></canvas>
         <div id="specBusy" hidden></div>
       </div>
 
-      <div class="spec-foot">
+      <div class="foot-row">
         <div class="transport">
-          <button type="button" id="playBtn">Play</button>
+          <button type="button" id="playBtn">
+            <svg class="i-play" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.2v9.6L10.5 6z" fill="currentColor"/></svg>
+            <svg class="i-pause" width="12" height="12" viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 1.5h2.6v9H2.5zM6.9 1.5h2.6v9H6.9z" fill="currentColor"/></svg>
+            <span id="playLabel">Play</span>
+          </button>
           <span id="clock">0:00.0 / 0:00.0</span>
-          <button type="button" class="ghost" id="pngBtn" data-i18n="spec.png">Save PNG</button>
+          <button type="button" class="btn-ghost" id="pngBtn">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/></svg>
+            <span data-i18n="spec.png">Save PNG</span>
+          </button>
         </div>
         <p class="hint" data-i18n="spec.hint">Hover to read time, frequency and level. Click to play from there; space bar plays and pauses.</p>
       </div>
     </div>
 
     <div class="card" id="chartCard">
-      <div class="spec-head">
+      <div class="card-head">
         <h3 data-i18n="chart.title">Long-term spectrum</h3>
         <label class="check" id="refCtl"><input type="checkbox" id="showRef" checked> <span data-i18n="chart.ref">Overlay a genuine FLAC</span></label>
       </div>
-      <div class="chart-wrap" id="chartWrap">
+      <div class="frame" id="chartWrap">
         <canvas id="chart"></canvas>
         <canvas id="chartOverlay"></canvas>
       </div>
@@ -267,25 +436,66 @@
     </div>
   </div>
 
-  <div class="how">
-    <section>
-      <h3 data-i18n="how.title">How it decides</h3>
-      <ol>
-        <li data-i18n-html="how.cutoff"></li>
-        <li data-i18n-html="how.steep"></li>
-        <li data-i18n-html="how.stereo"></li>
-      </ol>
-      <p class="caveat" data-i18n-html="how.caveat"></p>
-    </section>
-    <section>
-      <h3 data-i18n="read.title">Reading the spectrogram</h3>
+  <section class="section">
+    <div class="section-head"><span class="num">01</span><h2 data-i18n="how.title">How it decides</h2></div>
+    <div class="how-grid">
+      <article class="card how-card">
+        <svg viewBox="0 0 240 72" aria-hidden="true">
+          <path d="M4 64H236" stroke="rgba(255,255,255,.08)"/>
+          <path d="M184 6V68" stroke="#ff6b8a" stroke-width="1.4" stroke-dasharray="4 4"/>
+          <path d="M4 24L18 20L28 27L40 22L50 28L64 24L76 31L90 28L104 33L120 31L134 36L150 35L166 38L184 37V58H236" fill="none" stroke="#f2813c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="184" cy="37" r="3.5" fill="#ff6b8a"/>
+        </svg>
+        <p data-i18n-html="how.cutoff"></p>
+      </article>
+      <article class="card how-card">
+        <svg viewBox="0 0 240 72" aria-hidden="true">
+          <path d="M4 64H236" stroke="rgba(255,255,255,.08)"/>
+          <path d="M4 24C70 26 130 33 168 43S222 56 236 58" fill="none" stroke="#7c839a" stroke-width="1.6" stroke-dasharray="3 5" stroke-linecap="round"/>
+          <path d="M4 24L148 30L154 58H236" fill="none" stroke="#f2813c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <path d="M164 30V58M160 30h8M160 58h8" stroke="#f3d38b" stroke-width="1.2"/>
+          <text x="172" y="22" fill="#f3d38b" font-family="Geist Mono, ui-monospace, monospace" font-size="11">≥ 20 dB</text>
+        </svg>
+        <p data-i18n-html="how.steep"></p>
+      </article>
+      <article class="card how-card">
+        <svg viewBox="0 0 240 72" aria-hidden="true">
+          <path d="M4 18c14-6 26 6 40 0s28-6 40 2 28 0 40-4 20 6 26 18" fill="none" stroke="#4fd1ae" stroke-width="2" stroke-linecap="round"/>
+          <path d="M4 50c14 6 26-6 40 0s28 6 40-2 28 0 40 4 20-6 26-18" fill="none" stroke="#c264a8" stroke-width="2" stroke-linecap="round"/>
+          <path d="M150 34h86" stroke="#eef0f6" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="150" cy="34" r="3.5" fill="#eef0f6"/>
+          <text x="10" y="11" fill="#4fd1ae" font-family="Geist Mono, ui-monospace, monospace" font-size="11">L</text>
+          <text x="10" y="71" fill="#c264a8" font-family="Geist Mono, ui-monospace, monospace" font-size="11">R</text>
+        </svg>
+        <p data-i18n-html="how.stereo"></p>
+      </article>
+    </div>
+    <p class="caveat" data-i18n-html="how.caveat"></p>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><span class="num">02</span><h2 data-i18n="read.title">Reading the spectrogram</h2></div>
+    <div class="read-grid">
       <p data-i18n-html="read.stft"></p>
       <p data-i18n-html="read.reassigned"></p>
       <p data-i18n-html="read.cliff"></p>
-    </section>
-  </div>
+    </div>
+  </section>
 
-  <footer data-i18n-html="footer"></footer>
+  <footer class="site-foot">
+    <div class="install">
+      <span class="lbl" data-i18n="foot.install">Scan a whole library from the command line:</span>
+      <span class="cmd"><code id="installCmd">pip install spectral-forensics</code>
+        <button type="button" class="btn-ghost" id="copyBtn"><span id="copyLabel" data-i18n="foot.copy">Copy</span></button>
+      </span>
+    </div>
+    <p class="fine" data-i18n-html="footer"></p>
+    <div class="links">
+      <a href="https://github.com/shianjeng/spectral-forensics">GitHub</a>
+      <a href="https://pypi.org/project/spectral-forensics/">PyPI</a>
+      <a href="https://github.com/shianjeng/spectral-forensics/blob/main/LICENSE">MIT License</a>
+    </div>
+  </footer>
 </div>
 
 <script src="analysis.js"></script>

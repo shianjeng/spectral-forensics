@@ -8,11 +8,12 @@
 
 const en = {
   "meta.title": "Is it really lossless? — spectral-forensics",
-  "title": "Is it really lossless?",
+  "title": "Is it really <em>lossless?</em>",
   "lede": "Drop a FLAC, WAV or ALAC file. If it was ever an mp3, the encoder left a cliff in its spectrum — and the cliff survives conversion back to a lossless container.",
   "privacy": "Everything runs in your browser. The file is never uploaded anywhere.",
   "drop.title": "Drop an audio file here",
   "drop.sub": "or click to choose — flac, wav, m4a, mp3, ogg",
+  "drop.cta": "Choose file",
   "sources.label": "Examples",
   "sample.genuine": "Genuine FLAC",
   "sample.mp3": "128 kbps mp3, back as FLAC",
@@ -92,16 +93,20 @@ const en = {
   "read.cliff": "An mp3's lowpass shows up as a dark, perfectly flat ceiling across the whole track. Set the frequency axis to <b>Linear</b> — the log axis squeezes the top octave — and switch between the first two examples. In the long-term spectrum the genuine FLAC stays on as a green reference line, so the missing top octave is visible without switching at all.",
 
   "footer": "Same detection as <code>spf audit</code> in <a href=\"https://github.com/shianjeng/spectral-forensics\">spectral-forensics</a>, ported to JavaScript and checked against the Python implementation on identical signals. The command-line version scans whole libraries, reports implied bitrates and renders posters and videos.",
+  "foot.install": "Scan a whole library from the command line:",
+  "foot.copy": "Copy",
+  "foot.copied": "Copied",
   "lang.switch": "日本語",
 };
 
 const ja = {
   "meta.title": "それ、本当にロスレス？ — spectral-forensics",
-  "title": "それ、本当にロスレス？",
+  "title": "それ、本当に<em>ロスレス</em>？",
   "lede": "FLAC・WAV・ALAC ファイルをドロップしてください。一度でも mp3 を経由していれば、エンコーダーがスペクトルに「崖」を残します。この崖はロスレス形式に戻しても消えません。",
   "privacy": "処理はすべてブラウザ内で完結します。ファイルがどこかへアップロードされることはありません。",
   "drop.title": "ここに音声ファイルをドロップ",
   "drop.sub": "またはクリックして選択 — flac, wav, m4a, mp3, ogg",
+  "drop.cta": "ファイルを選択",
   "sources.label": "サンプル",
   "sample.genuine": "本物の FLAC",
   "sample.mp3": "128 kbps mp3 → FLAC",
@@ -181,6 +186,9 @@ const ja = {
   "read.cliff": "mp3 のローパスは、曲全体にわたる真っ暗で完全に平らな「天井」として現れます。周波数軸を<b>線形</b>にして（対数軸では最上位のオクターブが詰まって見えます）、最初の 2 つのサンプルを切り替えてみてください。長時間スペクトルには本物の FLAC が緑の参考線として常に重なっているので、切り替えなくても最上位のオクターブが欠けているのがわかります。",
 
   "footer": "判定ロジックは <a href=\"https://github.com/shianjeng/spectral-forensics\">spectral-forensics</a> の <code>spf audit</code> と同じで、JavaScript に移植したうえで同一信号を使って Python 実装と照合しています。コマンドライン版はライブラリ全体の一括スキャン、推定ビットレートの表示、ポスターや動画の書き出しにも対応しています。",
+  "foot.install": "ライブラリ全体をコマンドラインで一括スキャン：",
+  "foot.copy": "コピー",
+  "foot.copied": "コピーしました",
   "lang.switch": "English",
 };
 

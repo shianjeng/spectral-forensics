@@ -14,6 +14,11 @@ const store = {
 };
 
 const MAX_SECONDS = 120;
+
+// 画布上的字和线，与 index.html 的 CSS 变量保持一致
+const MONO = '"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace';
+const SANS = '"Geist",ui-sans-serif,-apple-system,"Segoe UI",sans-serif';
+const INK = { tick:"#8a90a6", grid:"rgba(255,255,255,.06)", caption:"#6b7288", ref:"#4fd1ae" };
 const LOSSLESS = /\.(flac|wav|aiff?|alac|wv|ape)$/i;
 
 // 与 spectral_forensics/render.py 的 PALETTES 相同
@@ -50,7 +55,7 @@ function applyLang(){
   document.title = t("meta.title");
   for(const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
   for(const el of document.querySelectorAll("[data-i18n-html]")) el.innerHTML = t(el.dataset.i18nHtml);
-  $("langBtn").textContent = t("lang.switch");
+  $("langLabel").textContent = t("lang.switch");
   $("langBtn").lang = lang==="en" ? "ja" : "en";
   $("drop").setAttribute("aria-label", t("drop.title"));
   if(state.file){ renderVerdict(); drawSpectrogram(); drawOverlay(); drawChart(); }
@@ -127,7 +132,7 @@ async function select(key){
   try{
     f = await loadSource(key, (msg, isErr) => { if(token===selectToken) say(msg, isErr); });
   }catch(err){
-    if(token===selectToken){ say(t("status.sampleFail"), true); markTabs(active); }
+    if(token===selectToken){ say(t("status.sampleFail"), true); markTabs(active); $("skeleton").hidden = true; }
     return;
   }
   if(token!==selectToken) return;
@@ -142,7 +147,7 @@ async function openFile(file){
   try{
     buf = await audioCtx().decodeAudioData(await file.arrayBuffer());
   }catch(err){
-    if(token===selectToken) say(t("status.decodeFail"), true);
+    if(token===selectToken){ say(t("status.decodeFail"), true); if(!state.file) $("skeleton").hidden = true; }
     return;
   }
   if(token!==selectToken) return;
@@ -223,7 +228,12 @@ function show(key, f){
   $("verdictCard").hidden = synth;
   $("chartCard").hidden = synth;
   $("synthCard").hidden = !synth;
-  $("result").hidden = false;
+  $("skeleton").hidden = true;
+  const res = $("result");
+  res.hidden = false;
+  res.classList.remove("swap");
+  void res.offsetWidth;             // 重新触发淡入
+  res.classList.add("swap");
   say("");
   markTabs(key);
   syncUrl(key);
@@ -257,6 +267,7 @@ function renderVerdict(){
   const { v, cut, stereoHz, isLossless, sr, n } = f;
   $("badge").textContent = t("tier."+v.tier);
   $("badge").className = "badge "+v.tier;
+  $("verdictCard").dataset.tier = v.tier;
   $("fname").textContent = f.name;
   $("headline").textContent = t("headline."+v.tier);
 
@@ -407,8 +418,8 @@ function drawSpectrogram(){
   }
 
   // 坐标轴
-  g.font = "11px ui-monospace,SFMono-Regular,Menlo,monospace";
-  g.fillStyle = "#8b93a7"; g.strokeStyle = "rgba(240,242,248,.10)"; g.lineWidth = 1;
+  g.font = "11px "+MONO;
+  g.fillStyle = INK.tick; g.strokeStyle = "rgba(240,242,248,.12)"; g.lineWidth = 1;
   g.textAlign = "right"; g.textBaseline = "middle";
   const ticks = axis.logFreq
     ? [20,50,100,200,500,1000,2000,5000,10000,20000]
@@ -428,7 +439,7 @@ function drawSpectrogram(){
     g.beginPath(); g.moveTo(x, plot.y+plot.h); g.lineTo(x, plot.y+plot.h+4); g.stroke();
     if(x < plot.x+plot.w-unitW-18) g.fillText(step<1 ? s.toFixed(1) : String(Math.round(s)), x, plot.y+plot.h+7);
   }
-  g.textAlign = "right"; g.fillStyle = "#5a6175";
+  g.textAlign = "right"; g.fillStyle = INK.caption;
   g.fillText(t("spec.time"), plot.x+plot.w, plot.y+plot.h+7);
 
   // 截止频率
@@ -439,7 +450,7 @@ function drawSpectrogram(){
     g.beginPath(); g.moveTo(plot.x, y); g.lineTo(plot.x+plot.w, y); g.stroke();
     g.setLineDash([]);
     const label = t("spec.cutoffLabel", (cut/1000).toFixed(1));
-    g.font = "600 12px ui-sans-serif,-apple-system,sans-serif";
+    g.font = "600 12px "+SANS;
     const w = g.measureText(label).width;
     g.fillStyle = "rgba(5,7,13,.78)"; g.fillRect(plot.x+plot.w-w-14, y-22, w+10, 18);
     g.fillStyle = "#ff8fa6"; g.textAlign = "left"; g.textBaseline = "middle";
@@ -477,7 +488,7 @@ function drawOverlay(){
     const row = Math.min(R.height-1, Math.max(0, Math.floor((plot.y+plot.h-h.y)/plot.h*R.height)));
     const db = R.db[row*R.width+col];
     const text = `${tSec.toFixed(2)} s · ${fmtHz(hz)} · ${db<=-120 ? "≤ −120" : db.toFixed(0).replace("-","−")} dB`;
-    g.font = "12px ui-monospace,SFMono-Regular,Menlo,monospace";
+    g.font = "12px "+MONO;
     const w = g.measureText(text).width + 12;
     let bx = h.x+12, by = h.y-28;
     if(bx+w > plot.x+plot.w) bx = h.x-12-w;
@@ -544,7 +555,8 @@ function updateClock(){
   $("clock").textContent = f ? `${fmtClock(Math.min(position(), f.n/f.sr))} / ${fmtClock(f.n/f.sr)}` : "";
 }
 function updateTransport(){
-  $("playBtn").textContent = player.playing ? "❚❚ "+t("spec.pause") : "▶ "+t("spec.play");
+  $("playLabel").textContent = player.playing ? t("spec.pause") : t("spec.play");
+  $("playBtn").classList.toggle("playing", player.playing);
   updateClock();
 }
 function togglePlay(){
@@ -612,8 +624,8 @@ function drawChart(){
   const { cssW:W, cssH:H, L, R, T, B, X, Y } = G;
 
   g.clearRect(0,0,W,H);
-  g.strokeStyle = "#161b2b"; g.lineWidth = 1; g.font = "11px ui-monospace,SFMono-Regular,Menlo,monospace";
-  g.fillStyle = "#5a6175"; g.textAlign = "center"; g.textBaseline = "top";
+  g.strokeStyle = INK.grid; g.lineWidth = 1; g.font = "11px "+MONO;
+  g.fillStyle = INK.caption; g.textAlign = "center"; g.textBaseline = "top";
   for(const hz of [50,100,200,500,1000,2000,5000,10000,20000]){
     if(hz<G.fMin || hz>G.fMax) continue;
     g.beginPath(); g.moveTo(X(hz)+0.5,T); g.lineTo(X(hz)+0.5,H-B); g.stroke();
@@ -634,11 +646,11 @@ function drawChart(){
     g.fillText((cut/1000).toFixed(1)+" kHz", X(cut)-8, T+6);
   }
 
-  if(ref) strokeCurve(g, G, ref, "rgba(63,191,160,.6)", 1.4);
+  if(ref) strokeCurve(g, G, ref, "rgba(79,209,174,.62)", 1.4);
   strokeCurve(g, G, f, "#f2813c", 1.8);
 
-  g.fillStyle = "#5a6175"; g.textAlign = "left"; g.textBaseline = "bottom";
-  g.font = "12px ui-sans-serif,-apple-system,sans-serif";
+  g.fillStyle = INK.caption; g.textAlign = "left"; g.textBaseline = "bottom";
+  g.font = "12px "+SANS;
   g.fillText(t("chart.caption"), L, H-4);
 
   state.chartGeom = G;
@@ -664,13 +676,13 @@ function drawChartOverlay(){
     if(d===null) return;
     g.fillStyle = color; g.beginPath(); g.arc(x, G.Y(Math.max(d, G.dbMin)), 3.5, 0, 2*Math.PI); g.fill();
   };
-  dot(theirs, "#3fbfa0");
+  dot(theirs, INK.ref);
   dot(mine, "#f2813c");
 
   const fmtDb = d => d===null ? "—" : d<=G.dbMin ? "≤ −100 dB" : d.toFixed(0).replace("-","−")+" dB";
   let text = `${fmtHz(hz)} · ${fmtDb(mine)}`;
   if(ref) text += ` · ${t("chart.refRead")} ${fmtDb(theirs)}`;
-  g.font = "12px ui-monospace,SFMono-Regular,Menlo,monospace";
+  g.font = "12px "+MONO;
   const w = g.measureText(text).width + 12;
   let bx = x+12, by = h.y-28;         // 跟着鼠标走，和时频图的读数一致，不会固定压住截止频率标签
   if(bx+w > G.cssW-G.R) bx = x-12-w;
@@ -790,6 +802,23 @@ function setup(){
   const chartLocal = e => { const r = co.getBoundingClientRect(); return { x:e.clientX-r.left, y:e.clientY-r.top }; };
   co.addEventListener("pointermove", e => { state.chartHover = chartLocal(e); drawChartOverlay(); });
   co.addEventListener("pointerleave", () => { state.chartHover = null; drawChartOverlay(); });
+  $("copyBtn").addEventListener("click", async () => {
+    const cmd = $("installCmd").textContent;
+    try{
+      await navigator.clipboard.writeText(cmd);
+    }catch(e){
+      // 没有剪贴板权限时退而选中文字，让人自己复制
+      const r = document.createRange(); r.selectNodeContents($("installCmd"));
+      const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+      return;
+    }
+    $("copyLabel").textContent = t("foot.copied");
+    setTimeout(() => { $("copyLabel").textContent = t("foot.copy"); }, 1600);
+  });
+  if(document.fonts && document.fonts.ready){
+    document.fonts.ready.then(() => { if(state.file){ drawSpectrogram(); drawOverlay(); drawChart(); } });
+  }
+
   $("showRef").checked = state.showRef;
   $("showRef").addEventListener("change", () => {
     state.showRef = $("showRef").checked;
