@@ -311,8 +311,10 @@ function renderVerdict(){
     $("headline").textContent = t("empty.headline");
     for(const id of ["s-cut", "s-steep", "s-stereo", "s-dur"]) $(id).textContent = "—";
     $("notes").replaceChildren();
+    $("s-cut").closest(".stats").hidden = true;      // 零状态只留一行，不占一整张卡
     return;
   }
+  $("s-cut").closest(".stats").hidden = false;
   if(!f.v) return;
   const { v, cut, stereoHz, isLossless, sr, n } = f;
   $("badge").textContent = t("tier."+v.tier);
@@ -344,11 +346,12 @@ function renderVerdict(){
 /* ---------------------------- 时频图 ---------------------------- */
 
 const PAD = { l:50, r:12, t:10, b:28 };   // CSS 像素
+const EMPTY_H = 180;                      // 零状态下两张空图的高度
 
 function specGeometry(){
   const dpr = Math.min(window.devicePixelRatio||1, 2);
   const cssW = $("specWrap").clientWidth || 900;
-  const cssH = Math.round(Math.max(250, Math.min(460, cssW*0.46)));
+  const cssH = state.file ? Math.round(Math.max(250, Math.min(460, cssW*0.46))) : EMPTY_H;
   const plot = { x:PAD.l, y:PAD.t, w:cssW-PAD.l-PAD.r, h:cssH-PAD.t-PAD.b };
   return { dpr, cssW, cssH, plot };
 }
@@ -457,7 +460,7 @@ function drawSpectrogram(){
   sizeCanvas(c, G); sizeCanvas($("specOverlay"), G);
   const g = c.getContext("2d"), { plot } = G;
   g.setTransform(G.dpr,0,0,G.dpr,0,0);
-  g.fillStyle = "#03050a"; g.fillRect(0,0,G.cssW,G.cssH);
+  g.fillStyle = "#05060a"; g.fillRect(0,0,G.cssW,G.cssH);
   const axis = R ? R.axis : { logFreq: state.spec.logFreq, fmin: state.spec.logFreq?20:0, fmax: (f ? f.sr : 44100)/2 };
   const dur = f ? f.n/f.sr : 0;
 
@@ -642,7 +645,7 @@ function chartGeometry(){
   const dpr = Math.min(window.devicePixelRatio||1, 2);
   const cssW = $("chartWrap").clientWidth || 900;
   const autoH = Math.round(Math.max(220, Math.min(360, cssW*0.4)));
-  const cssH = state.chartH ? Math.round(Math.max(CHART_MIN_H, Math.min(CHART_MAX_H, state.chartH))) : autoH;
+  const cssH = !f ? EMPTY_H : state.chartH ? Math.round(Math.max(CHART_MIN_H, Math.min(CHART_MAX_H, state.chartH))) : autoH;
   const L = 58, R = 14, T = 14, B = 44;
   const nyq = (f ? f.sr : 44100)/2;
 
@@ -730,6 +733,7 @@ function drawChart(){
   $("legendRef").hidden = !ref;
   $("refCtl").hidden = !f || active==="genuine";
   $("zoomCtl").hidden = !f;
+  $("chartGrip").hidden = !f;
   for(const b of $("zoomSeg").children) b.setAttribute("aria-pressed", String(b.dataset.v===state.chartView.mode));
 
   const c = $("chart"), G = chartGeometry();
