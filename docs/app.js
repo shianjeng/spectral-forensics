@@ -309,12 +309,10 @@ function renderVerdict(){
     $("verdictCard").removeAttribute("data-tier");
     $("fname").textContent = "";
     $("headline").textContent = t("empty.headline");
-    for(const id of ["s-cut", "s-steep", "s-stereo", "s-dur"]) $(id).textContent = "—";
+    for(const id of ["s-cut", "s-steep", "s-stereo", "s-dur"]) $(id).textContent = "";   // CSS 画统一的“—”
     $("notes").replaceChildren();
-    $("s-cut").closest(".stats").hidden = true;      // 零状态只留一行，不占一整张卡
     return;
   }
-  $("s-cut").closest(".stats").hidden = false;
   if(!f.v) return;
   const { v, cut, stereoHz, isLossless, sr, n } = f;
   $("badge").textContent = t("tier."+v.tier);

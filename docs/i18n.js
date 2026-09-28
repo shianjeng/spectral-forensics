@@ -106,6 +106,13 @@ const en = {
   "foot.copy": "Copy",
   "foot.copied": "Copied",
   "lang.label": "Language",
+  "report.kind": "Transcode audit",
+  "report.findings": "Findings",
+  "report.verdict": "Verdict",
+  "report.sample": "File",
+  "report.notes": "Notes",
+  "fig.1": "Fig. 1",
+  "fig.2": "Fig. 2",
 };
 
 const ja = {
@@ -208,6 +215,13 @@ const ja = {
   "foot.copy": "コピー",
   "foot.copied": "コピーしました",
   "lang.label": "言語",
+  "report.kind": "トランスコード検査",
+  "report.findings": "検査結果",
+  "report.verdict": "判定",
+  "report.sample": "ファイル",
+  "report.notes": "所見",
+  "fig.1": "図 1",
+  "fig.2": "図 2",
 };
 
 const zh = {
@@ -310,6 +324,13 @@ const zh = {
   "foot.copy": "复制",
   "foot.copied": "已复制",
   "lang.label": "语言",
+  "report.kind": "转码检测",
+  "report.findings": "检测结果",
+  "report.verdict": "结论",
+  "report.sample": "文件",
+  "report.notes": "说明",
+  "fig.1": "图 1",
+  "fig.2": "图 2",
 };
 
 root.SPF_I18N = { en, zh, ja };
