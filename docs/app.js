@@ -1,6 +1,7 @@
 /*
  * docs/index.html 的交互：读文件 / 示例 → 转码判定 + 时频图 + 长时间频谱，英中日三语。
  * 只有一个页面：没有音频时一切归零；示例和用户的文件是同一排标签，切换不重新解码。
+ * 一次拖进多个文件或一个文件夹时逐个判定，列成表格（表 1），点一行在下面打开完整报告。
  * 算法都在 analysis.js（globalThis.SPF），这里只管界面。
  */
 (function () {
@@ -65,6 +66,8 @@ function applyLang(){
   $("chartGrip").title = t("chart.resize");
   $("chartGrip").setAttribute("aria-label", t("chart.resize"));
   renderVerdict(); drawSpectrogram(); drawOverlay(); drawChart();   // 零状态里也有文字
+  for(let i=0; i<batch.rows.length; i++) renderRow(i);
+  renderBatchStat();
   updateTransport();
   updateResLabel();
 }
@@ -148,9 +151,9 @@ async function select(key){
   if(f) show(key, f); else markTabs(active);
 }
 
-async function openFile(file){
+async function openFile(file, name=file.name, row=-1){
   const token = ++selectToken;
-  say(t("status.decoding", file.name));
+  say(t("status.decoding", name));
   await nextFrame();
   let buf;
   try{
@@ -160,12 +163,13 @@ async function openFile(file){
     return;
   }
   if(token!==selectToken) return;
-  const f = await prepare(buf, file.name, "file", LOSSLESS.test(file.name), say);
+  const f = await prepare(buf, name, "file", LOSSLESS.test(file.name), say);
   if(!f || token!==selectToken) return;
   sources.set("file", f);
+  batch.open = row;
   const tab = $("fileTab");
-  tab.textContent = file.name;
-  tab.title = file.name;
+  tab.textContent = name;
+  tab.title = name;
   tab.hidden = false;
   $("fileSep").hidden = false;
   show("file", f);
@@ -286,6 +290,9 @@ function showEmpty(){
 
 function markTabs(key){
   for(const b of $("sources").querySelectorAll("button[data-src]")) b.setAttribute("aria-pressed", String(b.dataset.src===key));
+  // 表 1 里高亮正在下面显示的那一行
+  const open = key==="file" ? batch.open : -1;
+  for(const tr of $("batchRows").children) tr.classList.toggle("open", +tr.dataset.i===open);
 }
 
 /** 地址栏跟着标签走：示例带 ?sample=，可以直接分享；本地文件和零状态不带参数。 */
@@ -297,6 +304,239 @@ function syncUrl(key){
   const next = url.pathname + url.search + url.hash;
   if(next===location.pathname + location.search + location.hash) return;
   try{ history.replaceState(null, "", next); }catch(e){ /* file:// 下不允许 */ }
+}
+
+/* ---------------------------- 批量（表 1） ---------------------------- */
+
+// 浏览器多半解不开 wv / ape，但列出来、标成“无法解码”比悄悄跳过更好
+const AUDIO_EXT = /\.(flac|wav|aiff?|aifc|m4a|mp4|alac|caf|mp3|ogg|oga|opus|webm|aac|wv|ape)$/i;
+const isAudio = f => AUDIO_EXT.test(f.name) || /^audio\//.test(f.type || "");
+const BATCH_MAX = 2000;
+const FLAGGED = ["suspect", "likely"];
+
+const batch = {
+  rows: [],        // {file, path, tier, cut, stereoHz, v, sec, sr}
+  job: 0,          // 新的一批或关闭时加一，旧循环看到就停
+  done: 0,
+  running: false,
+  stopped: false,
+  truncated: 0,
+  open: -1,        // 正在下面报告里显示的行
+};
+
+/** 拖进来的东西 → [{file, path}]。文件夹递归展开；入口必须在 drop 事件里同步取出。 */
+async function droppedFiles(dt){
+  const items = dt.items ? [...dt.items] : [];
+  const entries = items.map(it => it.kind==="file" && it.webkitGetAsEntry ? it.webkitGetAsEntry() : null);
+  const loose = [...dt.files];
+  if(!entries.some(e => e && e.isDirectory)) return loose.map(file => ({ file, path:file.name }));
+
+  const out = [];
+  const fileOf = entry => new Promise(res => entry.file(res, () => res(null)));
+  const readAll = async dir => {
+    // readEntries 每次最多给一部分（Chrome 是 100 个），要一直读到空
+    const reader = dir.createReader(), all = [];
+    for(;;){
+      const part = await new Promise(res => reader.readEntries(res, () => res([])));
+      if(!part.length) return all;
+      all.push(...part);
+    }
+  };
+  const walk = async (entry, prefix) => {
+    if(out.length>BATCH_MAX) return;
+    if(entry.isFile){
+      const file = await fileOf(entry);
+      if(file && isAudio(file)) out.push({ file, path:prefix+file.name });
+    }else if(entry.isDirectory){
+      for(const child of await readAll(entry)) await walk(child, prefix+entry.name+"/");
+    }
+  };
+  for(const e of entries) if(e) await walk(e, "");
+  return out;
+}
+
+/** 一个文件照旧打开；多个文件进表 1。 */
+function openMany(list, all){
+  if(all && list.length===1){ openFile(list[0].file); return; }
+  const audio = list.filter(x => isAudio(x.file));
+  if(!audio.length){ say(t("batch.none"), true); return; }
+  if(audio.length===1){ openFile(audio[0].file, audio[0].path); return; }
+  runBatch(audio);
+}
+
+async function runBatch(list){
+  const job = ++batch.job;
+  list.sort((a, b) => a.path.localeCompare(b.path, undefined, { numeric:true, sensitivity:"base" }));
+  batch.truncated = Math.max(0, list.length-BATCH_MAX);
+  batch.rows = list.slice(0, BATCH_MAX).map(x => ({ file:x.file, path:x.path, tier:null }));
+  batch.done = 0;
+  batch.running = true;
+  batch.stopped = false;
+  batch.open = -1;
+  say("");
+  buildBatchTable();
+  $("batchCard").hidden = false;
+  $("batchCard").scrollIntoView({ block:"nearest", behavior:"smooth" });
+
+  for(let i=0; i<batch.rows.length; i++){
+    if(job!==batch.job) return;
+    const row = batch.rows[i];
+    row.tier = "busy";
+    renderRow(i);
+    renderBatchStat();
+    try{
+      const buf = await audioCtx().decodeAudioData(await row.file.arrayBuffer());
+      if(job!==batch.job) return;
+      const f = await prepare(buf, row.path, "file", LOSSLESS.test(row.file.name));
+      if(!f) row.tier = "short";
+      else Object.assign(row, { tier:f.v.tier, cut:f.cut, stereoHz:f.stereoHz, v:f.v, sec:f.n/f.sr, sr:f.sr });
+    }catch(err){
+      if(job!==batch.job) return;
+      row.tier = "fail";
+    }
+    batch.done = i+1;
+    renderRow(i);
+    renderBatchStat();
+    await nextFrame();              // 让页面喘口气，也让“停止”按得动
+  }
+  if(job!==batch.job) return;
+  batch.running = false;
+  renderBatchStat();
+}
+
+function stopBatch(){
+  if(!batch.running) return;
+  batch.job++;
+  batch.running = false;
+  batch.stopped = true;
+  for(const [i, row] of batch.rows.entries()) if(row.tier==="busy"){ row.tier = null; renderRow(i); }
+  renderBatchStat();
+}
+
+function closeBatch(){
+  batch.job++;
+  batch.running = false;
+  batch.rows = [];
+  batch.open = -1;
+  $("batchRows").replaceChildren();
+  $("batchCard").hidden = true;
+}
+
+function buildBatchTable(){
+  const body = $("batchRows");
+  body.replaceChildren(...batch.rows.map((row, i) => {
+    const tr = document.createElement("tr");
+    tr.dataset.i = i;
+    tr.tabIndex = 0;
+    for(const cls of ["n", "path", "tier", "num cut", "src", "num dur"]){
+      const td = document.createElement("td");
+      td.className = cls;
+      tr.appendChild(td);
+    }
+    tr.cells[0].textContent = i+1;
+    // 目录用浅色，文件名用深色；窄屏只留文件名
+    const cut = row.path.lastIndexOf("/")+1, dir = document.createElement("span");
+    dir.className = "dir";
+    dir.textContent = row.path.slice(0, cut);
+    tr.cells[1].append(dir, row.path.slice(cut));
+    tr.cells[1].title = row.path;
+    return tr;
+  }));
+  for(let i=0; i<batch.rows.length; i++) renderRow(i);
+  renderBatchStat();
+}
+
+/** 一行的内容。表头和格式跟判定卡片一致，切换语言时整表重画。 */
+function renderRow(i){
+  const row = batch.rows[i], tr = $("batchRows").children[i];
+  if(!tr) return;
+  const [, , tier, cut, src, dur] = tr.cells;
+  tr.dataset.tier = row.tier || "";
+  tr.classList.toggle("open", i===batch.open && active==="file");
+  tier.textContent = row.tier==="busy" ? "…" : row.tier==="fail" ? t("batch.fail")
+                   : row.tier==="short" ? t("batch.short") : row.tier ? t("tier."+row.tier) : "";
+  cut.textContent = src.textContent = dur.textContent = "";
+  if(!row.v) return;
+  const khz = row.cut.cutoffHz===null ? null : row.cut.cutoffHz/1000;
+  cut.textContent = khz===null ? "" : khz>=S.FULL_BAND_KHZ ? t("stat.fullBand") : khz.toFixed(1)+" kHz";
+  const guess = impliedSource(row);
+  src.textContent = guess===null ? "" : guess==="an unknown lossy encoder" ? t("note.unknownEncoder") : guess;
+  dur.textContent = row.sec.toFixed(0)+" s";
+}
+
+/** 判成有问题（或本来就是有损文件）时，截止频率对应的常见编码档位；否则 null。 */
+function impliedSource(row){
+  if(!row.v || row.cut.cutoffHz===null) return null;
+  const khz = row.cut.cutoffHz/1000;
+  if(khz>=S.FULL_BAND_KHZ || !["suspect", "likely", "lossy"].includes(row.v.tier)) return null;
+  return S.guessSource(khz);
+}
+
+function renderBatchStat(){
+  const n = batch.rows.length, el = $("batchStat");
+  const parts = [];
+  const text = s => { const span = document.createElement("span"); span.textContent = s; parts.push(span); };
+  if(batch.running) text(t("batch.progress", Math.min(batch.done+1, n), n));
+  else if(batch.stopped) text(t("batch.stopped", batch.done, n));
+  else text(t("batch.files", n));
+  for(const tier of ["suspect", "likely", "lossy", "clean", "fail"]){
+    const c = batch.rows.filter(r => r.tier===tier).length;
+    if(!c) continue;
+    const span = document.createElement("span");
+    span.className = "t-"+tier;
+    const b = document.createElement("b");
+    b.textContent = c;
+    span.append(b, " ", tier==="fail" ? t("batch.fail") : t("tier."+tier));
+    parts.push(span);
+  }
+  if(batch.truncated) text(t("batch.truncated", BATCH_MAX));
+  el.replaceChildren(...parts);
+  $("batchStop").hidden = !batch.running;
+  $("batchCsv").disabled = !batch.rows.some(r => r.v);
+}
+
+/** CSV 的列名与 `spf audit --json` 的字段一致，判定用英文代码，方便和命令行的结果放在一起比。 */
+function batchCsv(){
+  const head = ["path", "verdict", "confidence", "cutoff_khz", "steepness_db", "stereo_cutoff_khz", "guess", "analysed_s", "sample_rate"];
+  const esc = v => {
+    const s = v===null || v===undefined ? "" : String(v);
+    return /[",\n\r]/.test(s) ? '"'+s.replace(/"/g, '""')+'"' : s;
+  };
+  const lines = [head.join(",")];
+  for(const row of batch.rows){
+    if(!row.tier || row.tier==="busy") continue;
+    const ok = !!row.v;
+    const khz = ok && row.cut.cutoffHz!==null ? row.cut.cutoffHz/1000 : null;
+    lines.push([
+      row.path,
+      ok ? row.v.tier : row.tier==="fail" ? "error" : "too_short",
+      ok ? row.v.score.toFixed(2) : "",
+      khz===null ? "" : khz.toFixed(2),
+      ok && row.cut.steepness!==null ? row.cut.steepness.toFixed(1) : "",
+      ok && row.stereoHz!==null ? (row.stereoHz/1000).toFixed(2) : "",
+      impliedSource(row) || "",
+      ok ? row.sec.toFixed(1) : "",
+      ok ? row.sr : "",
+    ].map(esc).join(","));
+  }
+  // 带 BOM，Excel 打开中文 / 日文文件名才不乱码
+  return "﻿"+lines.join("\r\n")+"\r\n";
+}
+
+function downloadCsv(){
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([batchCsv()], { type:"text/csv;charset=utf-8" }));
+  a.download = "spf-audit.csv";
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+
+function openRow(i){
+  const row = batch.rows[i];
+  if(!row) return;
+  openFile(row.file, row.path, i).then(() => {
+    if(active==="file" && batch.open===i) $("verdictCard").scrollIntoView({ block:"start", behavior:"smooth" });
+  });
 }
 
 /* ---------------------------- 判定卡片 ---------------------------- */
@@ -946,16 +1186,51 @@ function setup(){
   const drop = $("drop"), picker = $("file");
   drop.addEventListener("click", () => picker.click());
   drop.addEventListener("keydown", e => { if(e.key==="Enter" || e.key===" "){ e.preventDefault(); picker.click(); } });
-  picker.addEventListener("change", () => { if(picker.files[0]) openFile(picker.files[0]); picker.value = ""; });
+  picker.addEventListener("change", () => {
+    const list = [...picker.files].map(file => ({ file, path:file.name }));
+    picker.value = "";
+    if(list.length) openMany(list, true);
+  });
+  const folder = $("folder");
+  $("folderBtn").addEventListener("click", () => folder.click());
+  folder.addEventListener("change", () => {
+    const list = [...folder.files].map(file => ({ file, path:file.webkitRelativePath || file.name }));
+    folder.value = "";
+    if(list.length) openMany(list, false);
+  });
   let depth = 0;
   window.addEventListener("dragenter", e => { e.preventDefault(); depth++; drop.classList.add("hot"); });
   window.addEventListener("dragover", e => e.preventDefault());
   window.addEventListener("dragleave", () => { if(--depth<=0){ depth = 0; drop.classList.remove("hot"); } });
   window.addEventListener("drop", e => {
     e.preventDefault(); depth = 0; drop.classList.remove("hot");
-    const file = e.dataTransfer && e.dataTransfer.files[0];
-    if(file) openFile(file);
+    if(!e.dataTransfer) return;
+    const hasDir = [...(e.dataTransfer.items || [])].some(it => it.webkitGetAsEntry && (it.webkitGetAsEntry() || {}).isDirectory);
+    droppedFiles(e.dataTransfer).then(list => {
+      if(list.length) openMany(list, !hasDir);
+      else if(hasDir) say(t("batch.none"), true);   // 拖进来的是一段文字之类的就不出声
+    });
   });
+
+  $("batchRows").addEventListener("click", e => {
+    const tr = e.target.closest("tr[data-i]");
+    if(tr) openRow(+tr.dataset.i);
+  });
+  $("batchRows").addEventListener("keydown", e => {
+    const tr = e.target.closest("tr[data-i]");
+    if(!tr) return;
+    if(e.key==="Enter" || e.key===" "){ e.preventDefault(); openRow(+tr.dataset.i); }
+    else if(e.key==="ArrowDown" || e.key==="ArrowUp"){
+      e.preventDefault();
+      let next = e.key==="ArrowDown" ? tr.nextElementSibling : tr.previousElementSibling;
+      while(next && next.offsetParent===null) next = e.key==="ArrowDown" ? next.nextElementSibling : next.previousElementSibling;
+      if(next) next.focus();
+    }
+  });
+  $("batchStop").addEventListener("click", stopBatch);
+  $("batchClose").addEventListener("click", closeBatch);
+  $("batchCsv").addEventListener("click", downloadCsv);
+  $("onlyFlagged").addEventListener("change", () => $("batchTable").classList.toggle("only-flagged", $("onlyFlagged").checked));
 
   $("sources").addEventListener("click", e => {
     const b = e.target.closest("button[data-src]");

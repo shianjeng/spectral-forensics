@@ -113,6 +113,14 @@ and **Near the cutoff** jumps straight to the cliff. The level axis fits
 whatever is in view, so no curve is clipped, and the handle underneath
 resizes the plot.
 
+Drop several files, or a whole folder, and the page audits them one after
+another into a table: verdict, cutoff, the encoder setting that cutoff
+implies, and how much was analysed. **Only suspect & likely** hides the rest,
+**Export CSV** saves the table under the same field names as
+`spf audit --json`, and clicking a row opens its full report and spectrogram
+underneath. Nothing is uploaded here either, though for a library of
+thousands of files the command line is faster.
+
 Every example has its own link:
 [`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3),
 [`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine),
@@ -401,7 +409,7 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 67 passed
+pytest -q     # 68 passed
 ```
 
 CI runs the suite on Python 3.11 through 3.14 on every push, and again

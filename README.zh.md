@@ -78,6 +78,8 @@ spf audit ~/Music --recursive --verbose
 
 什么都没载入时，页面处于归零状态：判定显示“尚未载入”，各项数值都是“—”，两张图只有空坐标轴。拖入一个文件，或者从三个示例中选一个：经过 128 kbps mp3 往返的片段、编码前的那个真无损 FLAC，以及用来对比窗长的合成信号（扫频、纯音与脉冲）。每个来源只解码一次，切回去不用等；点**清除**就回到归零状态。长时频谱上会叠加一条绿色的真无损 FLAC 参考线。在 mp3 示例上，两条曲线一直重合到 16.7 kHz，之后只有一条还在继续——整个论点就在这一张图里。鼠标悬停可以读出任意频率上两条曲线各自的电平。横向拖动可以放大某一频段，拖出一个框则连电平一起放大，双击复位；点“截止附近”会直接放大到悬崖那一段。拖动图下方的手柄可以调整图的高度。纵轴会按可见范围内的数据自动适配，曲线不会被截掉。
 
+一次拖入多个文件，或者整个文件夹，页面会逐个检测，并把结果列成一张表：结论、截止频率、这个截止频率对应的常见编码档位，以及分析了多长。勾选“只看可疑和存疑”可以隐藏其余文件；“导出 CSV”保存的列名与 `spf audit --json` 的字段相同；点击任意一行，下方会打开它的完整报告和时频图。这里同样不上传任何东西，不过要扫描成千上万个文件的话，命令行版会更快。
+
 每个示例都有自己的链接：[`?sample=mp3`](https://shianjeng.github.io/spectral-forensics/?sample=mp3&lang=zh)、[`?sample=genuine`](https://shianjeng.github.io/spectral-forensics/?sample=genuine&lang=zh)、[`?sample=synth`](https://shianjeng.github.io/spectral-forensics/?sample=synth&lang=zh)。页面支持英文、中文和日文（`?lang=en`、`zh`、`ja`）。字体由仓库自己提供，所以除了 GitHub Pages 本身，页面不会发出任何网络请求。
 
 JavaScript 版不只是参照 Python 版写的，而是用测试保证两者一致。`tests/test_web_parity.py` 把同样的信号喂给两边，断言它们落在同一个 FFT 频点上，并且对自带示例给出相同的判定。`tests/test_web_spectrogram.py` 逐个频点把 STFT 与`librosa.stft` 比对，把每个重分配点与 `librosa.reassigned_spectrogram` 比对。示例音频用 `python examples/make_web_samples.py` 重新生成。
@@ -270,7 +272,7 @@ docs/              浏览器演示——静态文件，GitHub Pages 原样提供
 ## 测试
 
 ```bash
-pytest -q     # 67 passed
+pytest -q     # 68 passed
 ```
 
 每次推送，CI 都会在 Python 3.11 到 3.14 上跑一遍测试，每周一再跑一次。每周跑是因为依赖没有锁定版本：上游的变化应该先在 CI 里暴露，而不是先在某个人的安装里暴露。

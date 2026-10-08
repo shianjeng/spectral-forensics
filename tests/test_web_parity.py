@@ -133,3 +133,18 @@ def test_every_language_covers_every_string(run_js: RunJs):
     assert used, "页面里没有 data-i18n"
     missing = used - set(keys["en"])
     assert not missing, f"i18n.js 缺少 {sorted(missing)}"
+
+
+def test_batch_csv_uses_the_cli_field_names():
+    """README 说网页导出的 CSV 与 `spf audit --json` 用同样的字段名；页面独有的两列除外。"""
+    from dataclasses import fields
+
+    from spectral_forensics.audit import AuditResult
+
+    app = (DOCS / "app.js").read_text(encoding="utf-8")
+    m = re.search(r"const head = \[([^\]]*)\];", app)
+    assert m, "app.js 里找不到 CSV 表头"
+    head = re.findall(r'"([^"]+)"', m.group(1))
+    page_only = {"analysed_s", "sample_rate"}
+    assert head[0] == "path"
+    assert set(head) - page_only <= {f.name for f in fields(AuditResult)}

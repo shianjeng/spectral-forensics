@@ -83,7 +83,10 @@
   .drop-cta{flex:none; font:500 12.5px var(--mono); border:1px solid var(--ink); padding:5px 12px}
   #drop:hover .drop-cta{background:var(--ink); color:var(--sheet)}
   input[type=file]{display:none}
-  .privacy{display:flex; align-items:center; gap:7px; margin:8px 0 0; font-size:12.5px; color:var(--ink-3)}
+  .input-foot{display:flex; justify-content:space-between; align-items:center; gap:6px 16px; flex-wrap:wrap; margin-top:8px}
+  .privacy{display:flex; align-items:center; gap:7px; margin:0; font-size:12.5px; color:var(--ink-3)}
+  .link-btn{background:none; border:0; padding:0; font:12.5px var(--mono); color:var(--ink-2); text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--rule-2)}
+  .link-btn:hover{color:var(--ink); text-decoration-color:currentColor}
   .privacy svg{flex:none; color:var(--green)}
 
   .sources{display:flex; flex-wrap:wrap; align-items:center; gap:4px 18px; margin-top:16px}
@@ -174,6 +177,45 @@
   .legend{display:flex; flex-wrap:wrap; gap:6px 20px; align-items:center; margin-top:6px; font-size:12.5px; color:var(--ink-2)}
   .legend i{display:inline-block; width:16px; height:3px; vertical-align:middle; margin-right:8px}
   #legendThis{font:12px var(--mono)}
+  /* batch: a plain ruled table */
+  .batch-tools{display:flex; flex-wrap:wrap; align-items:center; gap:8px 16px}
+  #batchStat{font:12px var(--mono); color:var(--ink-3); display:flex; flex-wrap:wrap; gap:2px 12px}
+  #batchStat b{color:var(--ink); font-weight:600}
+  #batchStat .t-suspect{color:var(--rose)} #batchStat .t-likely{color:var(--amber)}
+  #batchStat .t-clean{color:var(--green)} #batchStat .t-lossy{color:var(--slate)}
+  .table-wrap{max-height:420px; overflow:auto; border-top:1px solid var(--ink); border-bottom:1px solid var(--ink)}
+  table.batch{width:100%; border-collapse:collapse; font-size:13.5px}
+  .batch th{position:sticky; top:0; z-index:1; background:var(--sheet); text-align:left; font:500 11.5px var(--mono); color:var(--ink-3);
+            letter-spacing:.04em; padding:7px 10px; border-bottom:1px solid var(--rule-2); white-space:nowrap}
+  .batch th::first-letter{text-transform:uppercase}
+  .batch td{padding:6px 10px; border-top:1px solid var(--rule-3); vertical-align:baseline}
+  .batch tr:first-child td{border-top:0}
+  .batch :is(th,td):first-child{padding-left:0}
+  .batch :is(th,td):last-child{padding-right:0}
+  .batch .n{text-align:right; width:1%; white-space:nowrap}
+  .batch td.n{font:12px var(--mono); color:var(--ink-3)}
+  .batch th.num{text-align:right}
+  .batch td.num{font:500 13px var(--mono); text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums}
+  .batch td.path{font:12.5px var(--mono); color:var(--ink-2); max-width:0; width:46%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .batch td.path .dir{color:var(--ink-3)}
+  .batch td.tier{white-space:nowrap; font-weight:600}
+  .batch td.src{color:var(--ink-2); white-space:nowrap}
+  .batch td:empty::before{content:"—"; color:var(--ink-3); font:400 12px var(--mono)}
+  .batch tbody tr{cursor:pointer}
+  .batch tbody tr:hover td{background:rgba(23,23,27,.035)}
+  .batch tbody tr.open td{background:rgba(201,88,26,.08)}
+  .batch tbody tr.open .path{color:var(--ink)}
+  .batch tbody tr:focus-visible{outline-offset:-2px}
+  .batch [data-tier=suspect] .tier,.batch [data-tier=fail] .tier{color:var(--rose)}
+  .batch [data-tier=likely] .tier{color:var(--amber)}
+  .batch [data-tier=clean] .tier{color:var(--green)}
+  .batch [data-tier=lossy] .tier{color:var(--slate)}
+  .batch [data-tier=short] .tier,.batch [data-tier=busy] .tier{color:var(--ink-3); font-weight:400}
+  .batch [data-tier=suspect] .cut{color:var(--rose)}
+  .batch [data-tier=likely] .cut{color:var(--amber)}
+  table.only-flagged tbody tr:not([data-tier=suspect]):not([data-tier=likely]):not([data-tier=fail]){display:none}
+  .batch-foot{display:flex; justify-content:space-between; align-items:center; gap:8px 20px; flex-wrap:wrap; margin-top:10px}
+  .batch-foot .hint{text-align:left; flex:1 1 320px}
   #result.swap > *{animation:fade .25s ease both}
   @keyframes fade{from{opacity:.4} to{opacity:1}}
 
@@ -213,6 +255,9 @@
     .facts dd{border-top:0; padding-top:2px}
     .sources .clear{order:1} .sources .tabs{order:2; flex-basis:100%} .sources .sep,.file-tab{order:3}
     .hint{text-align:left}
+    .batch .n,.batch .src,.batch .dur{display:none}
+    .batch td.path{width:55%}
+    .batch td.path .dir{display:none}
   }
   @media (max-width:520px){ .nav .pypi, .nav .gh-label{display:none} }
   @media (prefers-reduced-motion:reduce){ *,*::before,*::after{animation:none!important; transition:none!important} }
@@ -256,16 +301,20 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V4M7 8.5l5-4.5 5 4.5"/><path d="M4 15v3.5A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5V15"/></svg>
       </span>
       <div class="drop-text">
-        <h2 data-i18n="drop.title">Drop an audio file here</h2>
+        <h2 data-i18n="drop.title">Drop audio files or a folder here</h2>
         <p data-i18n="drop.sub">or click to choose — flac, wav, m4a, mp3, ogg</p>
       </div>
-      <span class="drop-cta" data-i18n="drop.cta">Choose file</span>
+      <span class="drop-cta" data-i18n="drop.cta">Choose files</span>
     </div>
-    <input type="file" id="file" accept="audio/*,.flac,.wav,.m4a,.aif,.aiff,.mp3,.ogg">
-    <p class="privacy">
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
-      <span data-i18n="privacy">Everything runs in your browser. The file is never uploaded anywhere.</span>
-    </p>
+    <input type="file" id="file" multiple accept="audio/*,.flac,.wav,.m4a,.aif,.aiff,.mp3,.ogg,.opus">
+    <input type="file" id="folder" webkitdirectory multiple>
+    <div class="input-foot">
+      <p class="privacy">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+        <span data-i18n="privacy">Everything runs in your browser. Your files are never uploaded anywhere.</span>
+      </p>
+      <button type="button" class="link-btn" id="folderBtn" data-i18n="drop.folder">Audit a whole folder</button>
+    </div>
 
     <div class="sources" id="sources">
       <button type="button" data-src="file" id="fileTab" class="file-tab" hidden></button>
@@ -282,6 +331,35 @@
       </button>
     </div>
     <div id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <section class="band" id="batchCard" hidden>
+    <div class="block-head">
+      <h3><span class="label" data-i18n="tab.1">Table 1</span><span data-i18n="batch.title">Batch audit</span></h3>
+      <div class="batch-tools">
+        <label class="check"><input type="checkbox" id="onlyFlagged"><span data-i18n="batch.flagged">Only suspect &amp; likely</span></label>
+        <button type="button" class="btn-ghost" id="batchStop" data-i18n="batch.stop">Stop</button>
+        <button type="button" class="btn-ghost" id="batchCsv" data-i18n="batch.csv">Export CSV</button>
+        <button type="button" class="btn-ghost" id="batchClose" data-i18n="batch.close">Close</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table class="batch" id="batchTable">
+        <thead><tr>
+          <th class="n">#</th>
+          <th data-i18n="report.sample">File</th>
+          <th data-i18n="report.verdict">Verdict</th>
+          <th class="num" data-i18n="stat.cutoff">cutoff</th>
+          <th class="src" data-i18n="batch.source">likely source</th>
+          <th class="num dur" data-i18n="stat.dur">analysed</th>
+        </tr></thead>
+        <tbody id="batchRows"></tbody>
+      </table>
+    </div>
+    <div class="batch-foot">
+      <div id="batchStat" role="status" aria-live="polite"></div>
+      <p class="hint" data-i18n="batch.hint">Click a row to open its full report below.</p>
+    </div>
   </section>
 
   <div id="result" hidden>
