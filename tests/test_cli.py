@@ -91,6 +91,19 @@ def test_audit_directory_json(track):
     assert main(["audit", str(track.parent), "-r", "--json"]) == 0
 
 
+def test_version_matches_pyproject(capsys):
+    """`spf --version` 必须和 pyproject.toml 一致。"""
+    import tomllib
+
+    pyproject = Path(__file__).resolve().parent.parent / "pyproject.toml"
+    meta = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+    expected = meta["project"]["version"]
+    with pytest.raises(SystemExit) as exc:
+        main(["--version"])
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.strip() == f"spectral-forensics {expected}"
+
+
 def test_check_reports_environment():
     assert main(["check"]) == 0
     assert main(["check", "--json"]) == 0
