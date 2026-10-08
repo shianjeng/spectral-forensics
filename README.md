@@ -391,7 +391,7 @@ docs/              the browser demo — static, served by GitHub Pages as is
 ├── analysis.js    audit + STFT + reassignment, ported from the Python above
 ├── app.js         the page
 ├── i18n.js        English / Chinese / Japanese strings
-├── fonts/         Geist, Geist Mono, Instrument Serif (SIL OFL 1.1)
+├── fonts/         Geist, Geist Mono (SIL OFL 1.1)
 └── samples/       built by examples/make_web_samples.py
 ```
 

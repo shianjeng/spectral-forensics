@@ -261,7 +261,7 @@ docs/              浏览器演示——静态文件，GitHub Pages 原样提供
 ├── analysis.js    audit + STFT + 重分配，从上面的 Python 移植
 ├── app.js         页面本身
 ├── i18n.js        英文 / 中文 / 日文文案
-├── fonts/         Geist、Geist Mono、Instrument Serif（SIL OFL 1.1）
+├── fonts/         Geist、Geist Mono（SIL OFL 1.1）
 └── samples/       由 examples/make_web_samples.py 生成
 ```
 

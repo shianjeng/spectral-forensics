@@ -261,7 +261,7 @@ docs/              ブラウザ版デモ — 静的ファイルで、GitHub Page
 ├── analysis.js    audit + STFT + 再割り当て（上の Python からの移植）
 ├── app.js         ページ本体
 ├── i18n.js        英語 / 中国語 / 日本語の文言
-├── fonts/         Geist、Geist Mono、Instrument Serif（SIL OFL 1.1）
+├── fonts/         Geist、Geist Mono（SIL OFL 1.1）
 └── samples/       examples/make_web_samples.py で生成
 ```
 
