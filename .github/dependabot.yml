@@ -1,0 +1,19 @@
+version: 2
+updates:
+  # 工作流里用到的 actions：每周看一次，合成一个 PR
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # pyproject.toml 里的依赖只写了区间（如 numpy>=1.24,<3）。
+  # increase-if-necessary：新版本还在区间内就不动；
+  # 只有出了区间外的大版本（如 numpy 3.0）才开 PR 提醒放宽上限。
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    versioning-strategy: increase-if-necessary

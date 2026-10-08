@@ -1,0 +1,35 @@
+name: Bug
+description: Something crashed, failed to install, or behaves differently from the README.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: 中文、日本語でも大丈夫です。
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you ran, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Command or steps
+      render: shell
+    validations:
+      required: true
+  - type: textarea
+    id: traceback
+    attributes:
+      label: Error output
+      description: The full traceback, if there was one.
+      render: text
+  - type: textarea
+    id: check
+    attributes:
+      label: Output of `spf check`
+      description: Shows the Python and package versions and whether ffmpeg is found. For the browser demo, give the browser and its version instead.
+      render: text
+    validations:
+      required: true

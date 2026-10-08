@@ -1,0 +1,57 @@
+name: Wrong verdict
+description: A file you know the history of got the wrong result.
+title: "Wrong verdict: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks. A misjudged file is the most useful report this project can get.
+        Please don't attach copyrighted audio. The numbers below, and a
+        screenshot of the spectrogram if you can, are usually enough.
+        中文、日本語でも大丈夫です。
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where did you run it?
+      options:
+        - Command line (spf audit)
+        - Browser demo
+        - Both
+    validations:
+      required: true
+  - type: dropdown
+    id: got
+    attributes:
+      label: Verdict you got
+      options:
+        - suspect
+        - likely
+        - clean
+        - lossy
+    validations:
+      required: true
+  - type: textarea
+    id: truth
+    attributes:
+      label: What you know about the file
+      description: Where it came from and why you think the verdict is wrong. For example, "ripped from my own CD with EAC" or "I made it from a 320 kbps mp3".
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste the output of `spf audit --verbose FILE`, or the cutoff, falloff and notes shown in the browser.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: format
+    attributes:
+      label: Format and sample rate
+      placeholder: FLAC, 44.1 kHz, 16-bit
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Spectrogram (optional)
+      description: A screenshot from the demo, or `spf poster FILE`. Drag the image in here.

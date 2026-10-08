@@ -409,13 +409,17 @@ librosa, so either half is usable alone.
 ## Tests
 
 ```bash
-pytest -q     # 68 passed
+pytest -q     # 69 passed
 ```
 
 CI runs the suite on Python 3.11 through 3.14 on every push, and again
 every Monday. The weekly run exists because the dependencies carry no
 pinned versions: upstream drift should surface in CI before it surfaces
-in somebody's install.
+in somebody's install. A preview job on Python 3.15 runs alongside; it may
+fail without blocking anything and shows which dependency has not caught up
+yet. Dependabot opens a pull request when a new major release falls outside
+one of the version caps, or when an action used by the workflows moves on.
+Release notes are in [CHANGELOG.md](https://github.com/shianjeng/spectral-forensics/blob/main/CHANGELOG.md).
 
 What the suite asserts, beyond "it doesn't crash": Δt·Δf = 1 across window
 lengths; a 1 kHz tone peaking within one FFT bin; reassignment measurably

@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Try the browser demo
+    url: https://shianjeng.github.io/spectral-forensics/
+    about: Check a file without installing anything. Nothing is uploaded.

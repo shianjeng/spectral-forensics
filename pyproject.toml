@@ -1,6 +1,6 @@
 [project]
 name = "spectral-forensics"
-version = "0.4.1"
+version = "0.4.2"
 description = "Spectral inspection toolkit: reassigned spectrograms, lossy-transcode forensics, and invertible frequency-domain editing."
 requires-python = ">=3.11"
 readme = "README.md"

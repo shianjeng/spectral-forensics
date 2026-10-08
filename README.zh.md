@@ -272,10 +272,10 @@ docs/              浏览器演示——静态文件，GitHub Pages 原样提供
 ## 测试
 
 ```bash
-pytest -q     # 68 passed
+pytest -q     # 69 passed
 ```
 
-每次推送，CI 都会在 Python 3.11 到 3.14 上跑一遍测试，每周一再跑一次。每周跑是因为依赖没有锁定版本：上游的变化应该先在 CI 里暴露，而不是先在某个人的安装里暴露。
+每次推送，CI 都会在 Python 3.11 到 3.14 上跑一遍测试，每周一再跑一次。每周跑是因为依赖没有锁定版本：上游的变化应该先在 CI 里暴露，而不是先在某个人的安装里暴露。另有一个 Python 3.15 预览任务一起跑，它失败不会拦住任何东西，只用来提前看出哪个依赖还没跟上。某个依赖出了超出版本上限的新大版本，或者工作流用到的 action 有了新版本时，Dependabot 会开一个 pull request。各版本的变更记录见 [CHANGELOG.md](https://github.com/shianjeng/spectral-forensics/blob/main/CHANGELOG.md)。
 
 除了“不崩溃”之外，测试断言的内容：各种窗长下 Δt·Δf = 1；1 kHz 纯音的峰值落在一个 FFT 频点之内；在同一网格上重分配确实让线性调频信号变锐利；12/16/19 kHz 的合成砖墙截止被还原到 500 Hz 以内；平缓的 6 dB/oct 滚降**不会**被当成编码器截止；STFT→ISTFT 往返精确；频段抑制不影响相邻频段；Griffin-Lim 误差随迭代次数单调下降；以及浏览器演示的 JavaScript 逐个频点与 Python 和 librosa 一致。
 

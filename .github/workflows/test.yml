@@ -16,9 +16,9 @@ jobs:
   lint-type-build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -35,7 +35,7 @@ jobs:
       - name: Build package
         run: python -m build
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
@@ -45,24 +45,31 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    # 下一个 Python 版本先跑着看：失败不拦合并，但能提前看到哪个依赖还没跟上
+    continue-on-error: ${{ matrix.preview }}
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13", "3.14"]
+        preview: [false]
+        include:
+          - python-version: "3.15"
+            preview: true
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
+          allow-prereleases: ${{ matrix.preview }}
           cache: pip
 
       - name: Install ffmpeg
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       # 浏览器版与 Python 版的一致性测试要在 node 里跑 docs/analysis.js
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: "22"
 
